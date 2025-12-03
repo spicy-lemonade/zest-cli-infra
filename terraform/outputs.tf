@@ -1,44 +1,44 @@
-output "bronze_bucket_name" {
-  description = "Name of the bronze layer storage bucket"
-  value       = google_storage_bucket.nlcli_ml_training_bronze.name
+output "base_bucket_name" {
+  description = "Name of the base layer storage bucket"
+  value       = google_storage_bucket.nlcli_ml_training_base.name
 }
 
-output "bronze_bucket_url" {
-  description = "GCS URL of the bronze layer bucket"
-  value       = google_storage_bucket.nlcli_ml_training_bronze.url
+output "base_bucket_url" {
+  description = "GCS URL of the base layer bucket"
+  value       = google_storage_bucket.nlcli_ml_training_base.url
 }
 
-output "bronze_bucket_self_link" {
-  description = "Self link of the bronze bucket for IAM bindings"
-  value       = google_storage_bucket.nlcli_ml_training_bronze.self_link
+output "base_bucket_self_link" {
+  description = "Self link of the base bucket for IAM bindings"
+  value       = google_storage_bucket.nlcli_ml_training_base.self_link
 }
 
-output "silver_bucket_name" {
-  description = "Name of the silver layer storage bucket"
-  value       = google_storage_bucket.nlcli_ml_training_silver.name
+output "staging_bucket_name" {
+  description = "Name of the staging layer storage bucket"
+  value       = google_storage_bucket.nlcli_ml_training_staging.name
 }
 
-output "silver_bucket_url" {
-  description = "GCS URL of the silver layer bucket"
-  value       = google_storage_bucket.nlcli_ml_training_silver.url
+output "staging_bucket_url" {
+  description = "GCS URL of the staging layer bucket"
+  value       = google_storage_bucket.nlcli_ml_training_staging.url
 }
 
-output "silver_bucket_self_link" {
-  description = "Self link of the silver bucket for IAM bindings"
-  value       = google_storage_bucket.nlcli_ml_training_silver.self_link
+output "staging_bucket_self_link" {
+  description = "Self link of the staging bucket for IAM bindings"
+  value       = google_storage_bucket.nlcli_ml_training_staging.self_link
 }
 
-output "gold_bucket_name" {
-  description = "Name of the gold layer storage bucket"
-  value       = google_storage_bucket.nlcli_ml_training_gold.name
+output "mart_bucket_name" {
+  description = "Name of the mart layer storage bucket"
+  value       = google_storage_bucket.nlcli_ml_training_mart.name
 }
 
-output "gold_bucket_url" {
-  description = "GCS URL of the gold layer bucket"
-  value       = google_storage_bucket.nlcli_ml_training_gold.url
+output "mart_bucket_url" {
+  description = "GCS URL of the mart layer bucket"
+  value       = google_storage_bucket.nlcli_ml_training_mart.url
 }
 
-output "gold_bucket_self_link" {
-  description = "Self link of the gold bucket for IAM bindings"
-  value       = google_storage_bucket.nlcli_ml_training_gold.self_link
+output "mart_bucket_self_link" {
+  description = "Self link of the mart bucket for IAM bindings"
+  value       = google_storage_bucket.nlcli_ml_training_mart.self_link
 }
