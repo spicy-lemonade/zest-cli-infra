@@ -96,10 +96,5 @@ We intend to operate strictly within the **GCP Free Tier limits**:
 
 ---
 
-## 📞 Admin
-
-* **Billing Owner:** X (`ciaranobrienmusic@gmail.com`)
-* **Maintainer:** @obrienciaran
-
 ## Billing account
 Ciaran currently owns the billing account under his personal email ciaranobrienmusic@gmail.com 
