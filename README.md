@@ -75,11 +75,14 @@ Access is managed via Google Groups to streamline permissions for the ML Enginee
 
 ## 💰 Cost Strategy & Free Tier
 
-**Goal:** Zero-cost infrastructure.
+**Goal:** Near zero-cost infrastructure.
 
 We intend to operate strictly within the **GCP Free Tier limits**:
 * **Storage:** < 5GB-months of standard storage.
 * **Compute:** None (Training occurs on Google Colab Free Tier T4 GPUs).
+* **Database:** Firebase free tier.
+* **Synthetic data:** Use `gemini-2.5-flash-lite` (used in the `natural-language-cli-eng` repo).
+
 ---
 
 ## Billing account
