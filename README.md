@@ -23,7 +23,7 @@ We utilize a **Medallion Architecture** pattern for data storage to ensure repro
   | base    | Enabled    | Keep 3 versions | After 14 days (current + non-current) |     
   | staging | Enabled    | Keep 3 versions | None                                  |     
   | mart    | Enabled    | Keep 3 versions | None                                  |                                                                                                              
-  | models  | Enabled    | Keep 3 versions | None                                  | 
+  | models  | None    | Keep 3 versions | None                                  | 
 
 ---
 
