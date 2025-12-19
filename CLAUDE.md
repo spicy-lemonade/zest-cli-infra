@@ -79,58 +79,9 @@ python -m data.mart.gemma_nl_cli_training
    - Applies model-specific chat templates (e.g., Gemma's `<start_of_turn>` tokens)
    - Outputs training-ready JSONL to GCS bucket: `nlcli-ml-training-mart-03ca945a`
 
-### Data ETL Utilities
-
-**Hashing & Deduplication** (`data/etl/utils/hashing.py`):
-```python
-from data.etl.utils import compute_md5_hash, add_hash_and_deduplicate
-
-# Add hash column and remove duplicates in one step
-df = add_hash_and_deduplicate(df)
-```
-
-**GCS Storage** (`data/etl/save/gcs_folder.py`):
-```python
-from data.etl.save import GCSFolderManager
-
-gcs_manager = GCSFolderManager(bucket_name)
-gcs_manager.save_dataframe_to_gcs(df, 'path/to/output.parquet')
-```
-
-**Constants** (`data/constants.py`)
-
-GCS constants for bucket names are defined in `data/constants.py`
-
-### Testing & Quality
-
-The pytest framework is used for writing tests.
-
-```bash
-# Run all tests with coverage
-pytest
-
-# Run specific test
-pytest tests/test_column_validation.py
-```
-
-### Code Quality
-
-Ruff is used as a linter and and is configured in the pre-commit-config.yaml file
-
-```bash
-# Run linter and formatter (configured with ruff)
-ruff check . --fix
-ruff format .
-
-# Run pre-commit hooks manually
-pre-commit run --all-files
-```
-
 ## Model Fine-tuning
 
 Training happens on Google Colab with GPUs.
 
 ## Project notes
-- Pre-commit hooks run ruff with `--fix` on all files except notebooks
-- All GCS buckets have versioning enabled
 - The project uses Python 3.8+
