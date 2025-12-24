@@ -5,9 +5,10 @@ from firebase_admin import initialize_app, firestore
 
 initialize_app()
 
-
+# Remove "STRIPE_WEBHOOK_SECRET" when creating the initial webhook to Firebase and also modify line 22
+# to use the temporary dummy value instead. Re-add these when running `firebase functions:secrets:set STRIPE_WEBHOOK_SECRET`
 @https_fn.on_request(
-    secrets=["STRIPE_SECRET_KEY"],
+    secrets=["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"], 
     cors=options.CorsOptions(
         cors_origins="*",
         cors_methods=["POST"],
@@ -19,8 +20,9 @@ def stripe_webhook(req: https_fn.Request) -> https_fn.Response:
     Verifies webhook signature and updates Firestore licenses collection.
     """
     stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
-    #webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
-    webhook_secret = "temporary_dummy_value"
+    # webhook_secret = "temporary_dummy_value"
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
     if not stripe.api_key or not webhook_secret:
         return https_fn.Response(
             "Missing required secrets",
