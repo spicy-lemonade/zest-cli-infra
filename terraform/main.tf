@@ -11,10 +11,10 @@ resource "random_id" "bucket_suffix" {
 }
 
 resource "google_storage_bucket" "terraform_state" {
-  name          = "nlcli-terraform-state-${var.project_id}"
+  name          = "nlcli-terraform-state-${var.project_id_prod}"
   location      = var.region
   storage_class = "STANDARD"
-  project       = var.project_id
+  project       = var.project_id_prod
 
   uniform_bucket_level_access = true
 
@@ -33,7 +33,7 @@ resource "google_storage_bucket" "nlcli_ml_training_base" {
   name          = local.bucket_name_base
   location      = var.region
   storage_class = "STANDARD"
-  project       = var.project_id
+  project       = var.project_id_prod
 
   uniform_bucket_level_access = true
 
@@ -89,7 +89,7 @@ resource "google_storage_bucket" "nlcli_ml_training_staging" {
   name          = local.bucket_name_staging
   location      = var.region
   storage_class = "STANDARD"
-  project       = var.project_id
+  project       = var.project_id_prod
 
   uniform_bucket_level_access = true
 
@@ -121,7 +121,7 @@ resource "google_storage_bucket" "nlcli_ml_training_mart" {
   name          = local.bucket_name_mart
   location      = var.region
   storage_class = "STANDARD"
-  project       = var.project_id
+  project       = var.project_id_prod
 
   uniform_bucket_level_access = true
 
@@ -153,7 +153,7 @@ resource "google_storage_bucket" "nlcli_models" {
   name          = "nlcli-models"
   location      = var.region
   storage_class = "STANDARD"
-  project       = var.project_id
+  project       = var.project_id_prod
 
   uniform_bucket_level_access = true
 

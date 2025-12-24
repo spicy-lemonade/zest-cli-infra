@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "nl-cli"
-  }
+    "default": "nl-cli",
+    "dev": "nl-cli-dev"
+  },
+  "targets": {},
+  "etags": {}
 }

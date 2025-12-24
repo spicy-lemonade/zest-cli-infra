@@ -43,17 +43,42 @@ output "mart_bucket_self_link" {
   value       = google_storage_bucket.nlcli_ml_training_mart.self_link
 }
 
-output "firestore_database_name" {
-  description = "Name of the Firestore database"
-  value       = google_firestore_database.zest_cli.name
+output "firebase_dev_project_id" {
+  description = "Firebase dev project ID"
+  value       = var.project_id_dev
 }
 
-output "firestore_database_id" {
-  description = "Fully qualified ID of the Firestore database"
-  value       = google_firestore_database.zest_cli.id
+output "firebase_dev_project_number" {
+  description = "Firebase dev project number"
+  value       = google_firebase_project.dev.project_number
 }
 
-output "firebase_project_number" {
-  description = "Firebase project number"
-  value       = google_firebase_project.default.project_number
+output "firestore_dev_database_name" {
+  description = "Name of the Firestore dev database"
+  value       = google_firestore_database.dev.name
+}
+
+output "firestore_dev_database_id" {
+  description = "Fully qualified ID of the Firestore dev database"
+  value       = google_firestore_database.dev.id
+}
+
+output "firebase_prod_project_id" {
+  description = "Firebase prod project ID"
+  value       = var.project_id_prod
+}
+
+output "firebase_prod_project_number" {
+  description = "Firebase prod project number"
+  value       = google_firebase_project.prod.project_number
+}
+
+output "firestore_prod_database_name" {
+  description = "Name of the Firestore prod database"
+  value       = google_firestore_database.prod.name
+}
+
+output "firestore_prod_database_id" {
+  description = "Fully qualified ID of the Firestore prod database"
+  value       = google_firestore_database.prod.id
 }
