@@ -68,19 +68,19 @@ cd ../
 firebase projects:list
 ```
 
-### 2. Set Up Email Service
+### 2. Verify Email Service Configuration
 
-The backend needs to send OTPs. Choose one:
+The backend uses Resend to send OTPs. Configuration is already complete:
 
-**Option A: Firebase Email Extension**
+1. Resend API key is configured in Firebase Functions secrets as `RESEND_API_KEY`
+2. OTP emails are sent from `onboarding@resend.dev` (Resend's default test domain)
+
+If you need to update the Resend API key:
 ```bash
-firebase ext:install firestore-send-email
+firebase functions:secrets:set RESEND_API_KEY
 ```
 
-**Option B: SendGrid**
-1. Get API key from [sendgrid.com](https://sendgrid.com)
-2. Add to Firebase: `firebase functions:secrets:set SENDGRID_API_KEY`
-3. Uncomment SendGrid code in `../functions/main.py:39-50`
+Note: For production, you should verify a custom domain in Resend and update the "from" address in `functions/main.py`.
 
 ### 3. Deploy Backend
 
@@ -119,7 +119,7 @@ You'll be prompted for email/OTP on first run.
 - [x] OTP generation and validation
 - [x] Device registration and management
 - [x] Stripe webhook integration
-- [ ] Email service configuration (TODO: Choose SendGrid/Mailgun/etc)
+- [x] Email service configuration (Resend)
 
 ### CLI
 - [x] First-run activation flow
