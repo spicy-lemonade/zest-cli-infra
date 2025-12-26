@@ -94,4 +94,47 @@ We intend to operate strictly within the **GCP Free Tier limits**:
 ---
 
 ## Billing account
-Ciaran currently owns the billing account under his personal email ciaranobrienmusic@gmail.com 
+Ciaran currently owns the billing account under his personal email ciaranobrienmusic@gmail.com
+
+---
+
+## 🔑 Firebase Functions Secrets
+
+The backend uses Firebase Cloud Functions with the following secrets:
+
+### Polar.sh Payment Integration
+
+1. **POLAR_ACCESS_TOKEN**: API token from Polar.sh dashboard
+   ```bash
+   firebase functions:secrets:set POLAR_ACCESS_TOKEN
+   ```
+
+2. **POLAR_WEBHOOK_SECRET**: Webhook signing secret from Polar.sh webhook settings
+   ```bash
+   firebase functions:secrets:set POLAR_WEBHOOK_SECRET
+   ```
+
+### Email Service (Resend)
+
+3. **RESEND_API_KEY**: API key from Resend dashboard
+   ```bash
+   firebase functions:secrets:set RESEND_API_KEY
+   ```
+
+### Deployment
+
+After setting secrets, deploy functions:
+```bash
+cd functions
+firebase deploy --only functions
+```
+
+### Webhook Configuration
+
+After deployment, configure this webhook URL in your Polar.sh dashboard:
+```
+https://europe-west1-<your-project-id>.cloudfunctions.net/polar_webhook
+```
+
+Enable the following webhook event:
+- **order.created** (fires when a one-time purchase is completed) 

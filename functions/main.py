@@ -1,5 +1,7 @@
 import os
-import stripe
+import hmac
+import hashlib
+import json
 import random
 import resend
 from datetime import datetime, timezone, timedelta
@@ -15,49 +17,64 @@ OTP_EXPIRY_MINUTES = 5
 
 @https_fn.on_request(
     region="europe-west1",
-    secrets=["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+    secrets=["POLAR_ACCESS_TOKEN", "POLAR_WEBHOOK_SECRET"],
     cors=options.CorsOptions(
         cors_origins="*",
         cors_methods=["POST"],
     ),
 )
-def stripe_webhook(req: https_fn.Request) -> https_fn.Response:
+def polar_webhook(req: https_fn.Request) -> https_fn.Response:
     """
-    Handle Stripe webhook events.
+    Handle Polar.sh webhook events.
     When a purchase is complete, it creates/updates a user license in Firestore.
-    """
-    stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
-    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
 
-    if not stripe.api_key or not webhook_secret:
-        return https_fn.Response("Missing required secrets", status=500)
+    Note: POLAR_SUCCESS_URL is configured in the Polar dashboard, not needed here.
+    """
+    webhook_secret = os.environ.get("POLAR_WEBHOOK_SECRET")
+
+    if not webhook_secret:
+        return https_fn.Response("Missing webhook secret", status=500)
 
     payload = req.get_data(as_text=True)
-    sig_header = req.headers.get("Stripe-Signature")
+    sig_header = req.headers.get("X-Polar-Signature")
+
+    if not sig_header:
+        return https_fn.Response("Missing signature header", status=400)
+
+    # Verify webhook signature using HMAC-SHA256
+    expected_signature = hmac.new(
+        webhook_secret.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(sig_header, expected_signature):
+        return https_fn.Response("Invalid signature", status=400)
 
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-    except (ValueError, stripe.error.SignatureVerificationError):
-        return https_fn.Response("Invalid payload or signature", status=400)
+        event = json.loads(payload)
+    except json.JSONDecodeError:
+        return https_fn.Response("Invalid JSON payload", status=400)
 
-    # Logic for successful checkout
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        customer_email = session.get("customer_details", {}).get("email")
+    # Logic for successful order
+    # Polar sends "order.created" when a one-time purchase is completed
+    if event.get("type") == "order.created":
+        order = event.get("data", {})
+        customer_email = order.get("customer_email")
 
         if not customer_email:
-            return https_fn.Response("No customer email in session", status=400)
+            return https_fn.Response("No customer email in order", status=400)
 
         db = firestore.client()
         license_ref = db.collection("licenses").document(customer_email)
 
-        # We set is_paid to True. We don't set hardware_id yet; 
+        # We set is_paid to True. We don't set hardware_id yet;
         # that happens when the user first runs the CLI.
         license_ref.set({"is_paid": True}, merge=True)
 
         return https_fn.Response(f"License updated for {customer_email}", status=200)
 
-    return https_fn.Response(f"Unhandled event: {event['type']}", status=200)
+    return https_fn.Response(f"Unhandled event: {event.get('type')}", status=200)
 
 
 @https_fn.on_request(
