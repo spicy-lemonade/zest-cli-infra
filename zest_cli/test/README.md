@@ -5,7 +5,6 @@ Complete guide for testing the Polar.sh payment integration with Firebase dev an
 ## Testing Tools
 
 - **create_test_license.py** - Script to create test licenses in Firestore dev
-- **test_device_limit.py** - Script to test the 2-device limit enforcement
 - **test_license_flow.sh** - Interactive test script (optional)
 
 ## Prerequisites
@@ -71,20 +70,6 @@ python main.py --help
 ```
 
 ### Scenario 2: Device Limit (3rd device)
-
-Use the test script to set up 2 mock devices, then verify a 3rd is rejected:
-
-```bash
-# Setup: Add 2 test devices to Firestore
-python test_device_limit.py test
-
-# This will:
-# 1. Create 2 test devices in Firestore
-# 2. Show instructions to test 3rd device rejection
-# 3. Provide cleanup command when done
-```
-
-Or manually:
 ```bash
 # After 2 devices are registered
 rm -f "$HOME/Library/Application Support/Zest/license.json"
@@ -148,4 +133,4 @@ The CLI is already configured for dev testing:
 - **Project**: `nl-cli-dev` (.firebaserc)
 - **OTP Expiry**: 5 minutes
 - **Device Limit**: 2 devices
-- **Lease Duration**: 14 days
+- **Lease Duration**: 14 days, then license checks happen again. i.e. the users devices pings Firebase. If they are offline, then they are granted access anyway to prevent work interruptions. 
