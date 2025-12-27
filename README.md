@@ -1,4 +1,4 @@
-# Natural language control for CLI tooling 
+# Zest CLI - Infra
 
 #### Using locally-trained small language models. No cloud. No API keys. Runs offline. Runs on CPU. Privacy first. No tracking. No Logging. No analytics.
 ![spicy](https://github.com/user-attachments/assets/9c3d925d-5c7b-44ed-a2c8-b73e5a897895)
