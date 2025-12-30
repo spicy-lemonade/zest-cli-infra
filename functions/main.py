@@ -13,7 +13,7 @@ initialize_app()
 
 # Configuration constants
 MAX_DEVICES = 2
-OTP_EXPIRY_MINUTES = 5
+OTP_EXPIRY_MINUTES = 10
 
 @https_fn.on_request(
     region="europe-west1",
@@ -128,7 +128,7 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
 
     try:
         resend.Emails.send({
-            "from": "onboarding@resend.dev",
+            "from": "info@zestcli.com",
             "to": email,
             "subject": "Your Zest CLI Verification Code",
             "html": f"""
