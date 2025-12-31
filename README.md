@@ -29,11 +29,20 @@ We utilize a **Medallion Architecture** pattern for data storage to ensure repro
 
 ## 🛠 Tech Stack
 
-* **Terraform:** State management and resource provisioning.
+* **Terraform:** State management and infrastructure provisioning across environments.
 * **Google Cloud Platform (GCP):**
-    * **Cloud Storage (GCS):** Data persistence for training datasets.
-    * **IAM:** Role-based access control for engineering teams.
-    * **Cloud Billing:** Budget alerts by email and cost management.
+  * **Cloud Storage (GCS):** Persistent storage for training datasets and artifacts.
+  * **IAM:** Role-based access control for engineering and operations teams.
+  * **Cloud Billing:** Cost tracking and budget alerts via email.
+* **Cloudflare:**
+  * **DNS & Domain Management:** Authoritative DNS for domains.
+  * **Security & Performance:** CDN, DDoS protection, and edge caching.
+* **Zoho Mail:**
+  * **Email Hosting:** Custom-domain email for internal and operational communication.
+* **Resend:**
+  * **Transactional Email:** Reliable delivery for product emails (auth, notifications, receipts).
+* **Polar.sh:**
+  * **Payments & Checkout:** Subscription management and checkout flow for monetization.
 
 ---
 
@@ -81,7 +90,7 @@ Access is managed via Google Groups to streamline permissions for the ML Enginee
 
 ---
 
-## 💰 Cost Strategy & Free Tier
+## 💰 Infra Breakdown - Cost Strategy
 
 **Goal:** Near zero-cost infrastructure.
 
@@ -93,7 +102,7 @@ We intend to operate as close as possible to the **GCP Free Tier limits**:
 * **Domain:** ~€10 p/a for Cloudflare domain name `zestcli.com`
 * **Email:** ~€10 p/a for Zoho email `info@zestcli.com`
 * **Emailing:** ~€0 for 3000 transactional emails (for sending OTP when registering)
-* **Claude**:** €20 ongoing personal cost for Claude code
+* **Claude:** €20 ongoing personal cost for Claude code
 
 ---
 
