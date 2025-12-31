@@ -164,7 +164,7 @@ python main.py --logout
   - `python main.py "show disk usage"` → `df -h`
 
 **Model not found**
-- Download to `~/.zest/gemma3_4b_Q4_K_M.gguf`
+- Download to `~/.zest/qwen3_4b_fp16.gguf`
 - Update `MODEL_PATH` in `main.py` line 13
 
 ### Testing Issues
