@@ -94,11 +94,12 @@ fi
 echo "✅ Model ready: $(du -h "$MODEL_PATH" | cut -f1)"
 
 # Build executable with PyInstaller
+# Using --onedir for fast startup (--onefile extracts on every launch = slow)
 echo "🔨 Building executable..."
 cd "$PROJECT_DIR"
 pyinstaller \
     --name="zest" \
-    --onefile \
+    --onedir \
     --console \
     --distpath="$BUILD_DIR/pyinstaller_dist" \
     --workpath="$BUILD_DIR/pyinstaller_work" \
@@ -115,9 +116,14 @@ APP_BUNDLE="$DIST_DIR/${APP_NAME}${PRODUCT_SUFFIX}.app"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
-# Copy executable
-cp "$BUILD_DIR/pyinstaller_dist/zest" "$APP_BUNDLE/Contents/MacOS/zest"
+# Copy executable to MacOS and dependencies to Frameworks
+# PyInstaller's macOS bootloader expects Python libs at Contents/Frameworks/
+cp "$BUILD_DIR/pyinstaller_dist/zest/zest" "$APP_BUNDLE/Contents/MacOS/"
 chmod +x "$APP_BUNDLE/Contents/MacOS/zest"
+
+# Move _internal contents to Frameworks (where bootloader expects them)
+mkdir -p "$APP_BUNDLE/Contents/Frameworks"
+cp -R "$BUILD_DIR/pyinstaller_dist/zest/_internal/"* "$APP_BUNDLE/Contents/Frameworks/"
 
 # Copy model
 echo "📦 Copying model to bundle..."
@@ -128,8 +134,12 @@ if [ -f "$PROJECT_DIR/resources/icon.icns" ]; then
     cp "$PROJECT_DIR/resources/icon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 fi
 
-# Copy license
-if [ -f "$PROJECT_DIR/resources/MODEL_LICENSE.txt" ]; then
+# Copy product-specific license
+PRODUCT_UPPER=$(echo "$PRODUCT" | tr '[:lower:]' '[:upper:]')
+LICENSE_FILE="$PROJECT_DIR/resources/MODEL_LICENSE_${PRODUCT_UPPER}.txt"
+if [ -f "$LICENSE_FILE" ]; then
+    cp "$LICENSE_FILE" "$APP_BUNDLE/Contents/Resources/MODEL_LICENSE.txt"
+elif [ -f "$PROJECT_DIR/resources/MODEL_LICENSE.txt" ]; then
     cp "$PROJECT_DIR/resources/MODEL_LICENSE.txt" "$APP_BUNDLE/Contents/Resources/"
 fi
 
@@ -170,23 +180,70 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << EOF
 EOF
 
 # Create launcher script
-cat > "$APP_BUNDLE/Contents/MacOS/zest-launcher" << LAUNCHER
+cat > "$APP_BUNDLE/Contents/MacOS/zest-launcher" << 'LAUNCHER'
 #!/bin/bash
-SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-RESOURCES_DIR="\$(dirname "\$SCRIPT_DIR")/Resources"
-MODEL_SRC="\$RESOURCES_DIR/$MODEL_NAME"
-MODEL_DEST="\$HOME/.zest/$MODEL_NAME"
+
+# Resolve symlinks to get the actual script location
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    # If SOURCE is relative, resolve it relative to the symlink's directory
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+RESOURCES_DIR="$(dirname "$SCRIPT_DIR")/Resources"
+
+# Detect product type from app bundle name
+APP_NAME="$(basename "$(dirname "$(dirname "$SCRIPT_DIR")")")"
+if [[ "$APP_NAME" == *"FP16"* ]]; then
+    MODEL_NAME="qwen3_4b_fp16.gguf"
+    PRODUCT_NAME="FP16"
+else
+    MODEL_NAME="qwen3_4b_Q5_K_M.gguf"
+    PRODUCT_NAME="Q5"
+fi
+
+MODEL_SRC="$RESOURCES_DIR/$MODEL_NAME"
+MODEL_DEST="$HOME/.zest/$MODEL_NAME"
+
+# Check if launched from Finder (double-click from GUI, not from terminal)
+# Finder launches apps with no arguments and with a specific parent process
+if [ $# -eq 0 ]; then
+    PARENT_NAME="$(ps -o comm= -p $PPID 2>/dev/null)"
+    if [[ "$PARENT_NAME" == *"launchd"* ]] || [[ "$PARENT_NAME" == *"Finder"* ]] || [[ "$PARENT_NAME" == *"open"* ]]; then
+        # Show simple dialog explaining how to use Zest
+        osascript -e "display dialog \"Zest CLI ($PRODUCT_NAME)
+
+This is a command-line tool. To use it:
+
+1. Open Terminal
+
+2. Create a symlink (one-time):
+   sudo ln -sf /Applications/$APP_NAME/Contents/MacOS/zest-launcher /usr/local/bin/zest
+
+3. Add to your ~/.zshrc (recommended):
+   alias zest='noglob /usr/local/bin/zest'
+   source ~/.zshrc
+
+4. Then run:
+   zest \\\"find all python files\\\"
+
+See README_INSTALL.txt for full setup.\" buttons {\"OK\"} default button \"OK\" with title \"Zest CLI\""
+        exit 0
+    fi
+fi
 
 # Ensure model is in place
-if [ ! -f "\$MODEL_DEST" ]; then
-    mkdir -p "\$HOME/.zest"
-    echo "🍋 Installing Zest model (first run only)..."
-    cp "\$MODEL_SRC" "\$MODEL_DEST"
+if [ ! -f "$MODEL_DEST" ]; then
+    mkdir -p "$HOME/.zest"
+    echo "🍋 Installing Zest $PRODUCT_NAME model (first run only)..."
+    cp "$MODEL_SRC" "$MODEL_DEST"
     echo "✅ Model installed."
 fi
 
 # Run the CLI
-exec "\$SCRIPT_DIR/zest" "\$@"
+exec "$SCRIPT_DIR/zest" "$@"
 LAUNCHER
 chmod +x "$APP_BUNDLE/Contents/MacOS/zest-launcher"
 
@@ -210,8 +267,12 @@ cp -R "$APP_BUNDLE" "$DMG_STAGING/"
 # Create Applications symlink
 ln -s /Applications "$DMG_STAGING/Applications"
 
-# Copy documentation
-cp "$PROJECT_DIR/resources/MODEL_LICENSE.txt" "$DMG_STAGING/" 2>/dev/null || true
+# Copy documentation (use product-specific license)
+if [ -f "$LICENSE_FILE" ]; then
+    cp "$LICENSE_FILE" "$DMG_STAGING/MODEL_LICENSE.txt"
+else
+    cp "$PROJECT_DIR/resources/MODEL_LICENSE.txt" "$DMG_STAGING/" 2>/dev/null || true
+fi
 cp "$PROJECT_DIR/resources/README_INSTALL.txt" "$DMG_STAGING/" 2>/dev/null || true
 
 # Create DMG
@@ -236,7 +297,9 @@ if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ]; then
     xcrun stapler staple "$DMG_PATH"
 fi
 
-# Cleanup
+# Cleanup intermediate build artifacts
+rm -rf "$APP_BUNDLE"
+rm -rf "$DMG_STAGING"
 deactivate
 echo ""
 echo "=============================================="

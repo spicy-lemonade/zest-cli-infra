@@ -77,69 +77,74 @@ def save_config(config: dict):
         json.dump(config, f)
 
 
-def check_for_orphaned_installation() -> bool:
+def check_for_orphaned_installation(active_product: str) -> bool:
     """
-    Check if app bundle has been deleted but files remain.
+    Check if app bundle has been deleted but files remain for the ACTIVE product only.
+    Only triggers if there was a previous license (indicating user actually used the app).
     Returns True if orphaned installation was detected and user chose to clean up.
     """
     config = load_config()
     hw_id = get_hw_id()
 
-    for product, app_path in APP_PATHS.items():
-        model_path = PRODUCTS[product]["path"]
-        product_key = f"{product}_license"
-        license_data = config.get(product_key)
+    # Only check the active product, not all products
+    product = active_product
+    app_path = APP_PATHS[product]
+    model_path = PRODUCTS[product]["path"]
+    product_key = f"{product}_license"
+    license_data = config.get(product_key)
 
-        # Check if model exists but app bundle is missing
-        if os.path.exists(model_path) and not os.path.exists(app_path):
-            print(f"\n⚠️  Zest {PRODUCTS[product]['name']} app was removed from Applications.")
-            print("   Model files and license still exist on this device.")
-            print("")
-            print("   Options:")
-            print("   1. Clean up (remove model files and deregister device)")
-            print("   2. Keep files (if you plan to reinstall)")
-            print("")
-            choice = input("   Enter choice [1/2]: ").strip()
+    # Only trigger orphan cleanup if:
+    # 1. Model exists
+    # 2. App bundle is missing
+    # 3. User previously had a license (indicating they used the app, not manual install)
+    if os.path.exists(model_path) and not os.path.exists(app_path) and license_data:
+        print(f"\n⚠️  Zest {PRODUCTS[product]['name']} app was removed from Applications.")
+        print("   Model files and license still exist on this device.")
+        print("")
+        print("   Options:")
+        print("   1. Clean up (remove model files and deregister device)")
+        print("   2. Keep files (if you plan to reinstall)")
+        print("")
+        choice = input("   Enter choice [1/2]: ").strip()
 
-            if choice == "1":
-                # Deregister from server if we have license data
-                if license_data:
-                    email = license_data.get("email")
-                    if email:
-                        print(f"🌶  Deregistering device...", end="\r")
-                        try:
-                            res = requests.post(
-                                f"{API_BASE}/deregister_device",
-                                json={"email": email, "device_uuid": hw_id, "product": product},
-                                timeout=10
-                            )
-                            if res.status_code == 200:
-                                print("\033[K🍋 Device deregistered.")
-                            else:
-                                print(f"\033[K⚠️  Could not deregister: {res.text}")
-                        except requests.exceptions.RequestException:
-                            print("\033[K⚠️  Could not reach server.")
-
-                    del config[product_key]
-
-                # Delete model file
+        if choice == "1":
+            # Deregister from server
+            email = license_data.get("email")
+            if email:
+                print(f"🌶  Deregistering device...", end="\r")
                 try:
-                    os.remove(model_path)
-                    print(f"🗑️  Removed {PRODUCTS[product]['name']} model file.")
-                except OSError as e:
-                    print(f"⚠️  Could not delete model: {e}")
+                    res = requests.post(
+                        f"{API_BASE}/deregister_device",
+                        json={"email": email, "device_uuid": hw_id, "product": product},
+                        timeout=10
+                    )
+                    if res.status_code == 200:
+                        print("\033[K🍋 Device deregistered.")
+                    else:
+                        print(f"\033[K⚠️  Could not deregister: {res.text}")
+                except requests.exceptions.RequestException:
+                    print("\033[K⚠️  Could not reach server.")
 
-                save_config(config)
+            del config[product_key]
 
-                # Clean up empty directories
-                if os.path.exists(ZEST_DIR) and not os.listdir(ZEST_DIR):
-                    try:
-                        os.rmdir(ZEST_DIR)
-                    except OSError:
-                        pass
+            # Delete model file
+            try:
+                os.remove(model_path)
+                print(f"🗑️  Removed {PRODUCTS[product]['name']} model file.")
+            except OSError as e:
+                print(f"⚠️  Could not delete model: {e}")
 
-                print("🍋 Cleanup complete.")
-                return True
+            save_config(config)
+
+            # Clean up empty directories
+            if os.path.exists(ZEST_DIR) and not os.listdir(ZEST_DIR):
+                try:
+                    os.rmdir(ZEST_DIR)
+                except OSError:
+                    pass
+
+            print("🍋 Cleanup complete.")
+            return True
 
     return False
 
@@ -321,15 +326,26 @@ def get_active_product() -> str:
     """
     Determine which product to use.
     Priority: 1) User preference, 2) fp16 if available, 3) q5 if available
+    Only considers products where the app bundle is installed (DMG mode).
     """
     config = load_config()
     preferred = config.get("active_product")
 
-    # If user has a preference and the model exists, use it
-    if preferred and os.path.exists(PRODUCTS[preferred]["path"]):
-        return preferred
+    # If user has a preference and both model and app exist, use it
+    if preferred:
+        app_exists = os.path.exists(APP_PATHS.get(preferred, ""))
+        model_exists = os.path.exists(PRODUCTS[preferred]["path"])
+        if app_exists and model_exists:
+            return preferred
 
-    # Otherwise, prefer fp16 over q5 if available
+    # Otherwise, prefer fp16 over q5 if available AND app is installed
+    for product in ["fp16", "q5"]:
+        app_exists = os.path.exists(APP_PATHS[product])
+        model_exists = os.path.exists(PRODUCTS[product]["path"])
+        if app_exists and model_exists:
+            return product
+
+    # Fallback: if no app bundle but model exists, still allow (dev/manual mode)
     if os.path.exists(MODEL_PATH_FP16):
         return "fp16"
     if os.path.exists(MODEL_PATH_Q5):
@@ -924,8 +940,12 @@ def main():
 
     query = " ".join(sys.argv[1:])
 
-    # 2.5. Check for orphaned installations (app deleted but files remain)
-    if check_for_orphaned_installation():
+    # 2.5. Determine active product first (needed for orphan check)
+    active_product = get_active_product()
+
+    # 2.6. Check for orphaned installations (app deleted but files remain)
+    # Only checks the active product, and only if user had a previous license
+    if check_for_orphaned_installation(active_product):
         sys.exit(0)
 
     # 3. Query quality checks
@@ -957,8 +977,7 @@ def main():
             sys.exit(0)
         print()
 
-    # 4. Determine active product and authenticate
-    active_product = get_active_product()
+    # 4. Authenticate (active_product already determined in step 2.5)
     authenticate(active_product)
 
     # 4.5. Check for updates (silent, non-blocking)

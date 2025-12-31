@@ -8,24 +8,42 @@ Thank you for purchasing Zest CLI!
                               QUICK START
 ================================================================================
 
-1. Drag the Zest app to your Applications folder (or double-click to run)
+1. Drag the Zest app to your Applications folder
 
-2. Open Terminal and run:
+2. IMPORTANT - First launch only:
+   Right-click the app in Applications and select "Open"
+   (This bypasses macOS Gatekeeper's extended scan which can take 30+ seconds)
+   Click "Open" in the security dialog that appears
+
+3. Open Terminal and run:
 
    /Applications/Zest-[MODEL].app/Contents/MacOS/zest-launcher "your query"
 
    Replace [MODEL] with FP16 or Q5 depending on which version you purchased.
 
-3. On first run, you'll be prompted to:
+4. On first run, you'll be prompted to:
    - Enter your purchase email
    - Enter the 6-digit verification code sent to your email
 
-4. (Recommended) Create a symlink for easier access:
+5. (Recommended) Create a symlink for easier access:
 
    sudo ln -sf "/Applications/Zest-Q5.app/Contents/MacOS/zest-launcher" /usr/local/bin/zest
 
    Or for FP16:
    sudo ln -sf "/Applications/Zest-FP16.app/Contents/MacOS/zest-launcher" /usr/local/bin/zest
+
+6. (Recommended) Add noglob alias to prevent shell expansion issues:
+
+   For zsh (default on macOS), add this line to your ~/.zshrc:
+   alias zest='noglob /usr/local/bin/zest'
+
+   For bash, add this line to your ~/.bashrc:
+   alias zest='noglob /usr/local/bin/zest'
+
+   Then reload your shell:
+   source ~/.zshrc    # or source ~/.bashrc
+
+   This prevents special characters like * and ? from being expanded by the shell.
 
 ================================================================================
                               EXAMPLE USAGE
@@ -210,6 +228,6 @@ INFO:
 ================================================================================
 
 Website: https://zestcli.com
-Email: support@zestcli.com
+Email: info@zestcli.com
 
 ================================================================================
