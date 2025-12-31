@@ -85,11 +85,15 @@ Access is managed via Google Groups to streamline permissions for the ML Enginee
 
 **Goal:** Near zero-cost infrastructure.
 
-We intend to operate strictly within the **GCP Free Tier limits**:
-* **Storage:** < 5GB-months of standard storage.
-* **Compute:** None (Training occurs on Google Colab Free Tier T4 GPUs).
+We intend to operate as close as possible to the **GCP Free Tier limits**:
+* **Storage:** < 15GB-months of standard storage (~8gb full precision model, ~3gb quantised model, ~2gb data)
+* **Compute:** ~€0 (Training occurs on Google Colab 'pay as you go; credits for GPUs).
 * **Database:** Firebase free tier.
-* **Synthetic data:** Use `gemini-2.5-flash-lite` (used in the `natural-language-cli-eng` repo).
+* **Synthetic data:** ~€0 Use `gemini-2.5-flash-lite` (used in the `natural-language-cli-eng` repo).
+* **Domain:** ~€10 p/a for Cloudflare domain name `zestcli.com`
+* **Email:** ~€10 p/a for Zoho email `info@zestcli.com`
+* **Emailing:** ~€0 for 3000 transactional emails (for sending OTP when registering)
+* **Claude**:** €20 ongoing personal cost for Claude code
 
 ---
 
