@@ -35,8 +35,10 @@ We utilize a **Medallion Architecture** pattern for data storage to ensure repro
   * **IAM:** Role-based access control for engineering and operations teams.
   * **Cloud Billing:** Cost tracking and budget alerts via email.
 * **Cloudflare:**
-  * **DNS & Domain Management:** Authoritative DNS for domains.
-  * **Security & Performance:** CDN, DDoS protection, and edge caching.
+  * **DNS & Domain Management:** Domain `zestcli.com`, and DNS.
+  * **Security & Performance:**  Website passed through cloudflare proxy
+* ** Github Pages:**
+  * Free tier hosting on Github Pages. This needs the frontend repo to be public however. 
 * **Zoho Mail:**
   * **Email Hosting:** Custom-domain email for internal and operational communication.
 * **Resend:**
