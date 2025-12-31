@@ -44,7 +44,7 @@ python main.py zest show me all running docker containers
 
 ### Setup
 
-1. **Configure API endpoint** in `main.py` line 14:
+1. **Configure API endpoint** in `main.py` in the config section:
    ```python
    API_BASE = "https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net"
    ```
