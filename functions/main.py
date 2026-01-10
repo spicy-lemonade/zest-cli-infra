@@ -8,6 +8,8 @@ import resend
 from datetime import datetime, timezone, timedelta
 from firebase_functions import https_fn, options
 from firebase_admin import initialize_app, firestore
+from polar_sdk import Polar
+from standardwebhooks.webhooks import Webhook
 
 # Initialize the Admin SDK once at the top level
 initialize_app()
@@ -17,10 +19,101 @@ MAX_DEVICES_PER_PRODUCT = 2
 OTP_EXPIRY_MINUTES = 10
 VALID_PRODUCTS = ["fp16", "q5"]
 
+# Polar.sh product IDs (from sandbox dashboard)
+POLAR_PRODUCT_IDS = {
+    "q5": "b85b0e75-2c8b-46ec-81ac-5e6548e5c915",
+    "fp16": "ebca85ec-20cd-4a53-a20b-3d64a79f399e",
+}
+
 
 def get_product_fields(product: str) -> tuple:
     """Return field names for a given product type."""
     return (f"{product}_is_paid", f"{product}_devices", f"{product}_polar_order_id")
+
+
+@https_fn.on_request(
+    region="europe-west1",
+    secrets=["POLAR_ACCESS_TOKEN"],
+    cors=options.CorsOptions(
+        cors_origins="*",
+        cors_methods=["POST"],
+    ),
+)
+def create_checkout(req: https_fn.Request) -> https_fn.Response:
+    """
+    Create a Polar.sh checkout session for a product.
+    Expects JSON: {"product": "q5"} or {"product": "fp16"}
+    Returns: {"checkout_url": "https://..."}
+    """
+    try:
+        data = req.get_json()
+    except Exception:
+        return https_fn.Response(
+            json.dumps({"error": "Invalid JSON"}),
+            status=400,
+            content_type="application/json"
+        )
+
+    product = data.get("product")
+
+    if not product:
+        return https_fn.Response(
+            json.dumps({"error": "Missing product field"}),
+            status=400,
+            content_type="application/json"
+        )
+
+    if product not in POLAR_PRODUCT_IDS:
+        return https_fn.Response(
+            json.dumps({"error": f"Invalid product. Available: {list(POLAR_PRODUCT_IDS.keys())}"}),
+            status=400,
+            content_type="application/json"
+        )
+
+    polar_access_token = os.environ.get("POLAR_ACCESS_TOKEN")
+    polar_success_url = os.environ.get("POLAR_SUCCESS_URL")
+
+    if not polar_access_token:
+        return https_fn.Response(
+            json.dumps({"error": "Missing Polar access token configuration"}),
+            status=500,
+            content_type="application/json"
+        )
+
+    product_id = POLAR_PRODUCT_IDS[product]
+
+    # Default success URL if not configured
+    success_url = polar_success_url or "https://zestcli.com?checkout=success"
+
+    try:
+        with Polar(
+            access_token=polar_access_token,
+            server="sandbox",
+        ) as polar:
+            checkout_params = {
+                "products": [product_id],
+                "success_url": success_url,
+            }
+
+            print(f"Creating checkout with params: {checkout_params}")
+            result = polar.checkouts.create(request=checkout_params)
+            print(f"Checkout created successfully: {result.url}")
+
+            return https_fn.Response(
+                json.dumps({"checkout_url": result.url}),
+                status=200,
+                content_type="application/json"
+            )
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Checkout error: {error_details}")
+        return https_fn.Response(
+            json.dumps({"error": f"Failed to create checkout: {str(e)}"}),
+            status=500,
+            content_type="application/json"
+        )
+
 
 @https_fn.on_request(
     region="europe-west1",
@@ -39,50 +132,100 @@ def polar_webhook(req: https_fn.Request) -> https_fn.Response:
     """
     webhook_secret = os.environ.get("POLAR_WEBHOOK_SECRET")
     if not webhook_secret:
+        print("Missing webhook secret")
         return https_fn.Response("Missing webhook secret", status=500)
 
     payload = req.get_data(as_text=True)
-    sig_header = req.headers.get("X-Polar-Signature")
 
-    if not sig_header:
-        return https_fn.Response("Missing signature header", status=400)
+    # Standard Webhooks uses these headers
+    webhook_id = req.headers.get("webhook-id")
+    webhook_timestamp = req.headers.get("webhook-timestamp")
+    webhook_signature = req.headers.get("webhook-signature")
 
-    # Verify webhook signature using HMAC-SHA256
-    expected_signature = hmac.new(
-        webhook_secret.encode("utf-8"),
-        payload.encode("utf-8"),
-        hashlib.sha256
-    ).hexdigest()
+    if not all([webhook_id, webhook_timestamp, webhook_signature]):
+        print(f"Missing headers: id={webhook_id}, ts={webhook_timestamp}, sig={webhook_signature}")
+        return https_fn.Response("Missing webhook headers", status=400)
 
-    if not hmac.compare_digest(sig_header, expected_signature):
-        return https_fn.Response("Invalid signature", status=400)
+    # Verify webhook signature using Standard Webhooks library
+    # Polar provides the secret in base64 format, standardwebhooks expects "whsec_" + base64
+    try:
+        import base64
+        # If secret doesn't start with whsec_, assume it's raw and needs to be formatted
+        if webhook_secret.startswith("whsec_"):
+            secret_for_verification = webhook_secret
+        else:
+            # Try to use it as-is first (it might already be base64)
+            # The standardwebhooks library expects: whsec_<base64-encoded-secret>
+            secret_for_verification = f"whsec_{webhook_secret}"
+
+        print(f"Secret format: starts_with_whsec={webhook_secret.startswith('whsec_')}, length={len(webhook_secret)}")
+        wh = Webhook(secret_for_verification)
+        wh.verify(payload, {
+            "webhook-id": webhook_id,
+            "webhook-timestamp": webhook_timestamp,
+            "webhook-signature": webhook_signature,
+        })
+        print("Webhook signature verified successfully")
+    except Exception as e:
+        # If verification fails, try encoding the secret to base64 first
+        try:
+            encoded_secret = base64.b64encode(webhook_secret.encode()).decode()
+            secret_for_verification = f"whsec_{encoded_secret}"
+            print(f"Retrying with base64 encoded secret, length={len(encoded_secret)}")
+            wh = Webhook(secret_for_verification)
+            wh.verify(payload, {
+                "webhook-id": webhook_id,
+                "webhook-timestamp": webhook_timestamp,
+                "webhook-signature": webhook_signature,
+            })
+            print("Webhook signature verified successfully (with base64 encoding)")
+        except Exception as e2:
+            print(f"Webhook signature verification failed: {str(e)} | Retry: {str(e2)}")
+            return https_fn.Response("Invalid signature", status=400)
 
     try:
         event = json.loads(payload)
     except json.JSONDecodeError:
         return https_fn.Response("Invalid JSON payload", status=400)
 
+    event_type = event.get("type")
+    print(f"Received webhook event: {event_type}")
+    print(f"Event data keys: {list(event.get('data', {}).keys())}")
+
     # Logic for successful order
     # Polar sends "order.paid" when payment is confirmed
-    if event.get("type") == "order.paid":
+    # Also handle "checkout.updated" with status=succeeded as fallback
+    if event_type == "order.paid":
         order = event.get("data", {})
         customer = order.get("customer", {})
         customer_email = customer.get("email")
 
+        print(f"Customer data: {customer}")
+        print(f"Customer email: {customer_email}")
+
         if not customer_email:
+            print("No customer email found in order data")
             return https_fn.Response("No customer email in order", status=400)
 
-        # Determine product type from product name
-        # Expected product names: "Zest CLI FP16" or "Zest CLI Q5" (or similar)
+        # Determine product type from product data
         product = order.get("product", {})
         product_name = product.get("name", "").lower()
+        product_id = order.get("product_id") or product.get("id")
 
-        if "fp16" in product_name or "fp" in product_name:
+        print(f"Product data: name={product.get('name')}, id={product_id}")
+
+        # Match by product ID first (more reliable), then fall back to name
+        if product_id == "ebca85ec-20cd-4a53-a20b-3d64a79f399e":
             product_type = "fp16"
-        elif "q5" in product_name or "quantized" in product_name:
+        elif product_id == "b85b0e75-2c8b-46ec-81ac-5e6548e5c915":
+            product_type = "q5"
+        elif "fp16" in product_name or "fp" in product_name or "extra spicy" in product_name:
+            product_type = "fp16"
+        elif "q5" in product_name or "quantized" in product_name or "lite" in product_name:
             product_type = "q5"
         else:
             # Default to q5 if unclear
+            print(f"Warning: Could not determine product type, defaulting to q5")
             product_type = "q5"
 
         paid_field, devices_field, order_field = get_product_fields(product_type)
@@ -99,16 +242,22 @@ def polar_webhook(req: https_fn.Request) -> https_fn.Response:
             zest_user_id = str(uuid.uuid4())
 
         now = datetime.now(timezone.utc)
-        license_ref.set({
-            "zest_user_id": zest_user_id,
-            "email": customer_email,
-            "polar_customer_id": order.get("customer_id"),
-            "polar_user_id": order.get("user_id"),
-            "updated_at": now.isoformat(),
-            "updated_at_unix": int(now.timestamp()),
-            paid_field: True,
-            order_field: order.get("id")
-        }, merge=True)
+        print(f"Creating/updating license for {customer_email}, product={product_type}")
+        try:
+            license_ref.set({
+                "zest_user_id": zest_user_id,
+                "email": customer_email,
+                "polar_customer_id": order.get("customer_id"),
+                "polar_user_id": order.get("user_id"),
+                "updated_at": now.isoformat(),
+                "updated_at_unix": int(now.timestamp()),
+                paid_field: True,
+                order_field: order.get("id")
+            }, merge=True)
+            print(f"License created successfully for {customer_email}")
+        except Exception as e:
+            print(f"Failed to create license: {str(e)}")
+            return https_fn.Response(f"Failed to create license: {str(e)}", status=500)
 
         return https_fn.Response(
             f"License for {product_type} updated for {customer_email}",
