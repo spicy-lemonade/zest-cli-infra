@@ -15,7 +15,7 @@ Thank you for purchasing Zest CLI!
    (This bypasses macOS Gatekeeper's extended scan which can take 30+ seconds)
    Click "Open" in the security dialog that appears
 
-3. Open Terminal and run:
+3. Open Terminal and run a command, for example:
 
    /Applications/Zest-[MODEL].app/Contents/MacOS/zest-launcher "your query"
 

@@ -1,6 +1,4 @@
 import os
-import hmac
-import hashlib
 import json
 import random
 import uuid
@@ -18,7 +16,7 @@ initialize_app()
 MAX_DEVICES_PER_PRODUCT = 2
 OTP_EXPIRY_MINUTES = 10
 VALID_PRODUCTS = ["fp16", "q5"]
-TRIAL_DURATION_MINUTES = 3  # TODO: Change back to TRIAL_DURATION_DAYS = 5 for production
+TRIAL_DURATION_MINUTES = 3  # TODO: Change to 7200 (5 days) for production
 
 # Polar.sh product IDs (from sandbox dashboard)
 POLAR_PRODUCT_IDS = {
@@ -39,6 +37,61 @@ def get_trial_fields(product: str) -> tuple:
         f"{product}_trial_started_at",
         f"{product}_trial_expires_at"
     )
+
+
+def check_machine_trial_used(db, device_id: str, product: str) -> dict:
+    """
+    Check if a machine ID has already been used for a trial on any email.
+    Returns {"used": bool, "email": str or None, "expired": bool or None}.
+    """
+    if not device_id:
+        return {"used": False, "email": None, "expired": None}
+
+    # Check the trial_machines collection
+    machine_ref = db.collection("trial_machines").document(device_id)
+    machine_doc = machine_ref.get()
+
+    if not machine_doc.exists:
+        return {"used": False, "email": None, "expired": None}
+
+    machine_data = machine_doc.to_dict()
+    trial_email = machine_data.get(f"{product}_trial_email")
+
+    if not trial_email:
+        return {"used": False, "email": None, "expired": None}
+
+    # Check if that trial is still active or expired
+    license_ref = db.collection("licenses").document(trial_email)
+    license_doc = license_ref.get()
+
+    if not license_doc.exists:
+        return {"used": True, "email": trial_email, "expired": True}
+
+    license_data = license_doc.to_dict()
+    _, _, expires_field = get_trial_fields(product)
+    expires_at = license_data.get(expires_field)
+
+    if expires_at:
+        now = datetime.now(timezone.utc)
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        expired = now >= expires_at
+        return {"used": True, "email": trial_email, "expired": expired}
+
+    return {"used": True, "email": trial_email, "expired": True}
+
+
+def record_machine_trial(db, device_id: str, email: str, product: str):
+    """Record that a machine ID has been used for a trial."""
+    if not device_id:
+        return
+
+    machine_ref = db.collection("trial_machines").document(device_id)
+    machine_ref.set({
+        f"{product}_trial_email": email,
+        f"{product}_trial_started_at": datetime.now(timezone.utc).isoformat(),
+        "last_updated": datetime.now(timezone.utc).isoformat()
+    }, merge=True)
 
 
 def get_trial_status(license_data: dict, product: str) -> dict:
@@ -326,11 +379,13 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
     Expects JSON: {
         "email": "user@example.com",
         "product": "fp16" or "q5",
-        "flow_type": "activation" or "trial" (optional, defaults to "activation")
+        "flow_type": "activation" or "trial" (optional, defaults to "activation"),
+        "device_id": "HARDWARE-UUID" (required for trial flow)
     }
 
     For "activation" flow: requires existing paid license
     For "trial" flow: creates license document if needed, allows new users
+                      checks email domain allowlist and machine ID
     """
     try:
         data = req.get_json()
@@ -340,6 +395,7 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
     email = data.get("email")
     product = data.get("product", "q5")
     flow_type = data.get("flow_type", "activation")
+    device_id = data.get("device_id")
 
     if not email:
         return https_fn.Response("Missing email", status=400)
@@ -364,6 +420,70 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
         if not license_data.get(paid_field):
             return https_fn.Response(f"No {product} license found for this email", status=403)
     else:
+        # Trial flow: check if this machine has already used a trial
+        if device_id:
+            machine_check = check_machine_trial_used(db, device_id, product)
+            if machine_check["used"]:
+                if machine_check["expired"]:
+                    return https_fn.Response(
+                        json.dumps({
+                            "status": "machine_trial_expired",
+                            "message": "This device has already used its free trial. Please purchase to continue.",
+                            "previous_email": machine_check["email"]
+                        }),
+                        status=200,
+                        content_type="application/json"
+                    )
+                else:
+                    # Machine has active trial - check if device is registered
+                    # to return full trial info and restore local config
+                    trial_email = machine_check["email"]
+                    trial_license_ref = db.collection("licenses").document(trial_email)
+                    trial_license_doc = trial_license_ref.get()
+
+                    if trial_license_doc.exists:
+                        trial_license_data = trial_license_doc.to_dict()
+                        trial_devices = trial_license_data.get("trial_devices", [])
+                        existing_device = next((d for d in trial_devices if d["device_id"] == device_id), None)
+
+                        if existing_device:
+                            # Device is registered - return full trial info
+                            expires_at = trial_license_data.get(expires_field)
+                            now = datetime.now(timezone.utc)
+                            if isinstance(expires_at, str):
+                                expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+
+                            remaining = expires_at - now
+                            hours_remaining = int(remaining.total_seconds() / 3600)
+                            minutes_remaining = int(remaining.total_seconds() / 60)
+                            days_remaining = hours_remaining // 24
+
+                            return https_fn.Response(
+                                json.dumps({
+                                    "status": "trial_active_device_registered",
+                                    "message": "Welcome back! Your trial is still active.",
+                                    "device_nickname": existing_device.get("device_name", ""),
+                                    "trial_email": trial_email,
+                                    "trial_expires_at": expires_at.isoformat(),
+                                    "days_remaining": days_remaining,
+                                    "hours_remaining": hours_remaining,
+                                    "minutes_remaining": minutes_remaining
+                                }),
+                                status=200,
+                                content_type="application/json"
+                            )
+
+                    # Device not registered or license not found - return generic message
+                    return https_fn.Response(
+                        json.dumps({
+                            "status": "machine_trial_active",
+                            "message": "This device already has an active trial.",
+                            "trial_email": trial_email
+                        }),
+                        status=200,
+                        content_type="application/json"
+                    )
+
         if doc.exists:
             license_data = doc.to_dict()
             if license_data.get(paid_field):
@@ -383,20 +503,36 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
                         status=200,
                         content_type="application/json"
                     )
+                # Trial is still active - check if device is already registered
+                if device_id:
+                    trial_devices = license_data.get("trial_devices", [])
+                    existing_device = next((d for d in trial_devices if d["device_id"] == device_id), None)
+                    if existing_device:
+                        # Device already registered on this trial - no OTP needed
+                        remaining = expires_at - now
+                        hours_remaining = int(remaining.total_seconds() / 3600)
+                        minutes_remaining = int(remaining.total_seconds() / 60)
+                        days_remaining = hours_remaining // 24
+                        return https_fn.Response(
+                            json.dumps({
+                                "status": "trial_active_device_registered",
+                                "message": "Welcome back! Your trial is still active.",
+                                "device_nickname": existing_device.get("device_name", ""),
+                                "trial_expires_at": expires_at.isoformat(),
+                                "days_remaining": days_remaining,
+                                "hours_remaining": hours_remaining,
+                                "minutes_remaining": minutes_remaining
+                            }),
+                            status=200,
+                            content_type="application/json"
+                        )
         else:
-            doc_ref.set({
-                "email": email,
-                "zest_user_id": str(uuid.uuid4()),
-                "created_at": datetime.now(timezone.utc).isoformat()
-            })
+            # For trial flow, don't create doc yet - wait until email sends successfully
+            # This prevents invalid emails from being stored in Firestore
+            pass
 
     otp_code = str(random.randint(100000, 999999))
     otp_expiry = datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES)
-
-    doc_ref.update({
-        "otp_code": otp_code,
-        "otp_expiry": otp_expiry
-    })
 
     resend_api_key = os.environ.get("RESEND_API_KEY")
     if not resend_api_key:
@@ -408,6 +544,7 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
     if flow_type == "trial":
         subject = "Start Your Zest CLI Free Trial"
 
+    # Try to send email FIRST before storing anything
     try:
         resend.Emails.send({
             "from": "info@zestcli.com",
@@ -421,6 +558,21 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
                 <p>If you did not request this code, please ignore this email.</p>
             """
         })
+
+        # Email sent successfully - now create/update the document
+        if not doc.exists and flow_type == "trial":
+            doc_ref.set({
+                "email": email,
+                "zest_user_id": str(uuid.uuid4()),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "otp_code": otp_code,
+                "otp_expiry": otp_expiry
+            })
+        else:
+            doc_ref.update({
+                "otp_code": otp_code,
+                "otp_expiry": otp_expiry
+            })
         return https_fn.Response(
             json.dumps({"status": "otp_sent", "message": "OTP sent successfully"}),
             status=200,
@@ -520,11 +672,18 @@ def start_trial(req: https_fn.Request) -> https_fn.Response:
 
         remaining = expires_at - now
         hours_remaining = int(remaining.total_seconds() / 3600)
+        minutes_remaining = int(remaining.total_seconds() / 60)
         days_remaining = hours_remaining // 24
 
         trial_devices = license_data.get("trial_devices", [])
-        device_exists = any(d["device_id"] == device_id for d in trial_devices)
-        if not device_exists:
+        existing_device = next((d for d in trial_devices if d["device_id"] == device_id), None)
+
+        if existing_device:
+            # Device already registered - return existing nickname
+            existing_nickname = existing_device.get("device_name", device_name)
+        else:
+            # New device on existing trial - add it
+            existing_nickname = device_name
             trial_devices.append({
                 "device_id": device_id,
                 "device_name": device_name,
@@ -532,12 +691,17 @@ def start_trial(req: https_fn.Request) -> https_fn.Response:
             })
             doc_ref.update({"trial_devices": trial_devices})
 
+        # Ensure machine ID is recorded (for reinstall detection)
+        record_machine_trial(db, device_id, email, product)
+
         return https_fn.Response(
             json.dumps({
                 "status": "trial_active",
                 "trial_expires_at": expires_at.isoformat(),
                 "days_remaining": days_remaining,
-                "hours_remaining": hours_remaining
+                "hours_remaining": hours_remaining,
+                "minutes_remaining": minutes_remaining,
+                "device_nickname": existing_nickname
             }),
             status=200,
             content_type="application/json"
@@ -558,6 +722,9 @@ def start_trial(req: https_fn.Request) -> https_fn.Response:
         "otp_code": firestore.DELETE_FIELD,
         "otp_expiry": firestore.DELETE_FIELD
     })
+
+    # Record machine ID to prevent multiple trials from the same device
+    record_machine_trial(db, device_id, email, product)
 
     return https_fn.Response(
         json.dumps({
@@ -615,10 +782,14 @@ def check_trial_status(req: https_fn.Request) -> https_fn.Response:
     license_data = doc.to_dict()
     trial_status = get_trial_status(license_data, product)
 
-    if device_id and trial_status["status"] == "trial_active":
+    # If device_id provided, check for device nickname in trial_devices
+    if device_id:
         trial_devices = license_data.get("trial_devices", [])
-        device_exists = any(d["device_id"] == device_id for d in trial_devices)
-        if not device_exists:
+        existing_device = next((d for d in trial_devices if d["device_id"] == device_id), None)
+        if existing_device:
+            trial_status["device_nickname"] = existing_device.get("device_name", "")
+
+        if trial_status["status"] == "trial_active" and not existing_device:
             now = datetime.now(timezone.utc)
             trial_devices.append({
                 "device_id": device_id,

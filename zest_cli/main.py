@@ -385,11 +385,12 @@ def show_trial_expired_prompt(product: str, email: str) -> bool:
                         print(f"   {checkout_url}")
                         subprocess.run(["open", checkout_url], check=False)
                         print("")
-                        print("   After payment, run 'zest' again to activate.")
+                        print("   After payment, run a zest query to activate.")
+                        print("   For example: zest list all files in Downloads")
                         return False
-                print("\033[K❌ Could not get checkout URL. Visit https://zestcli.com")
-            except requests.exceptions.RequestException:
-                print("\033[K❌ Connection error. Visit https://zestcli.com")
+                print(f"\033[K❌ Could not get checkout URL (status {res.status_code}). Visit https://zestcli.com")
+            except requests.exceptions.RequestException as e:
+                print(f"\033[K❌ Connection error: {e}. Visit https://zestcli.com")
             return False
         elif choice == "2":
             return True
@@ -409,36 +410,95 @@ def start_trial_flow(product: str) -> bool:
     product_name = PRODUCTS[product]["name"]
 
     print(f"\n🍋 Start your free trial of {product_name}")
-    email = input("Enter your email: ").strip()
 
-    if not email or "@" not in email:
-        print("❌ Please enter a valid email address.")
-        return False
+    # Email entry loop with retry on errors
+    while True:
+        email = input("Enter your email: ").strip()
 
-    print(f"🌶 Sending verification code to {email}...", end="\r")
-    try:
-        otp_res = requests.post(
-            f"{API_BASE}/send_otp",
-            json={"email": email, "product": product, "flow_type": "trial"},
-            timeout=10
-        )
-        if otp_res.status_code == 200:
-            data = otp_res.json()
-            if data.get("status") == "already_paid":
-                print("\033[K🍋 You already have a paid license! Switching to activation flow...")
-                return False
-            if data.get("status") == "trial_expired":
-                print("\033[K")
-                print(f"⚠️  {data.get('message', 'Your trial has expired.')}")
-                if show_trial_expired_prompt(product, email):
+        if not email or "@" not in email:
+            print("❌ Please enter a valid email address.")
+            continue
+
+        print(f"🌶 Sending verification code to {email}...", end="\r")
+        try:
+            otp_res = requests.post(
+                f"{API_BASE}/send_otp",
+                json={"email": email, "product": product, "flow_type": "trial", "device_id": hw_id},
+                timeout=10
+            )
+            if otp_res.status_code == 200:
+                data = otp_res.json()
+                if data.get("status") == "already_paid":
+                    print("\033[K🍋 You already have a paid license! Switching to activation flow...")
                     return False
-                sys.exit(0)
-        else:
-            print(f"\033[K❌ Error: {otp_res.text}")
-            return False
-    except requests.exceptions.RequestException as e:
-        print(f"\033[K❌ Connection error: {e}")
-        return False
+                if data.get("status") == "trial_expired":
+                    print("\033[K")
+                    print(f"⚠️  {data.get('message', 'Your trial has expired.')}")
+                    if show_trial_expired_prompt(product, email):
+                        return False
+                    sys.exit(0)
+                if data.get("status") == "trial_active_device_registered":
+                    # Device already registered on active trial - no OTP/nickname needed
+                    print("\033[K")
+                    # Use trial_email from response (may differ from entered email)
+                    trial_email = data.get("trial_email", email)
+                    nickname = data.get("device_nickname", "this device")
+                    expires_at = data.get("trial_expires_at")
+                    days = data.get("days_remaining", 0)
+                    hours = data.get("hours_remaining", 0)
+                    minutes = data.get("minutes_remaining", 0)
+
+                    config = load_config()
+                    trial_key = f"{product}_trial"
+                    config[trial_key] = {
+                        "email": trial_email,
+                        "is_trial": True,
+                        "trial_expires_at": expires_at,
+                        "trial_last_checked": time.time(),
+                        "device_nickname": nickname
+                    }
+                    save_config(config)
+
+                    print(f"🍋 Welcome back! Your trial is still active.")
+                    print(f"   Email: {trial_email}")
+                    print(f"   Device: \"{nickname}\"")
+                    if days > 0:
+                        print(f"   Time remaining: {days} days")
+                    elif hours > 0:
+                        print(f"   Time remaining: {hours} hours")
+                    elif minutes > 0:
+                        print(f"   Time remaining: {minutes} minutes")
+                    print("   Just a moment...")
+                    return True
+                if data.get("status") == "machine_trial_expired":
+                    print("\033[K")
+                    print(f"⚠️  {data.get('message', 'This device has already used its free trial.')}")
+                    prev_email = data.get("previous_email", "")
+                    if prev_email:
+                        print(f"   Previously registered with: {prev_email}")
+                    if show_trial_expired_prompt(product, prev_email or email):
+                        return False
+                    sys.exit(0)
+                if data.get("status") == "machine_trial_active":
+                    print("\033[K")
+                    trial_email = data.get("trial_email", "")
+                    print(f"🍋 This device already has an active trial!")
+                    if trial_email:
+                        print(f"   Registered with: {trial_email}")
+                    print("   Run 'zest' again to continue using your trial.")
+                    sys.exit(0)
+                if data.get("status") == "otp_sent":
+                    # OTP sent successfully, break out of email loop
+                    break
+            else:
+                # Server error - allow retry
+                print(f"\033[K❌ Error: {otp_res.text}")
+                print("   Please try again or press Ctrl+C to cancel.")
+                continue
+        except requests.exceptions.RequestException as e:
+            print(f"\033[K❌ Connection error: {e}")
+            print("   Please try again or press Ctrl+C to cancel.")
+            continue
 
     print("\033[K📧 Verification code sent!")
     code = input("Enter the 6-digit code: ").strip()
@@ -483,9 +543,9 @@ def start_trial_flow(product: str) -> bool:
 
             if status in ["trial_started", "trial_active"]:
                 expires_at = data.get("trial_expires_at")
-                # Handle both days (production) and minutes (testing)
-                days = data.get("days_remaining")
-                minutes = data.get("minutes_remaining")
+                days = data.get("days_remaining", 0)
+                hours = data.get("hours_remaining", 0)
+                minutes = data.get("minutes_remaining", 0)
 
                 config = load_config()
                 trial_key = f"{product}_trial"
@@ -499,10 +559,15 @@ def start_trial_flow(product: str) -> bool:
                 save_config(config)
 
                 print("\033[K")
-                if minutes:
-                    print(f"✅ Trial started! You have {minutes} minutes to try {product_name}.")  # Testing mode
+                action_word = "started" if status == "trial_started" else "continues"
+                if days > 0:
+                    print(f"✅ Trial {action_word}! You have {days} days to try {product_name}.")
+                elif hours > 0:
+                    print(f"✅ Trial {action_word}! You have {hours} hours to try {product_name}.")
+                elif minutes > 0:
+                    print(f"✅ Trial {action_word}! You have {minutes} minutes to try {product_name}.")
                 else:
-                    print(f"✅ Trial started! You have {days} days to try {product_name}.")
+                    print(f"✅ Trial {action_word}! Your trial is expiring soon.")
                 print("   Just a moment...")
                 return True
 
@@ -689,15 +754,40 @@ def authenticate(product: str):
     print("\033[K📧 Code sent!")
     code = input("Enter the 6-digit code: ").strip()
 
-    # Prompt for mandatory device nickname
-    print("")
-    print("💻 Enter a nickname for this device")
-    print("   (e.g., \"John's laptop\", \"Work MacBook\", \"Home iMac\")")
-    while True:
-        nickname = input("   Nickname: ").strip()
-        if nickname:
-            break
-        print("   ⚠️  Nickname is required. Please enter a name for this device.")
+    # Check for existing nickname from trial data (for smooth trial-to-paid conversion)
+    # First check local config
+    trial_key = f"{product}_trial"
+    trial_data = config.get(trial_key, {})
+    existing_nickname = trial_data.get("device_nickname")
+
+    # If not in local config, check backend for trial nickname
+    if not existing_nickname:
+        try:
+            trial_check = requests.post(
+                f"{API_BASE}/check_trial_status",
+                json={"email": email, "product": product, "device_id": hw_id},
+                timeout=5
+            )
+            if trial_check.status_code == 200:
+                trial_info = trial_check.json()
+                existing_nickname = trial_info.get("device_nickname")
+        except requests.exceptions.RequestException:
+            pass  # Ignore errors, will prompt for nickname
+
+    if existing_nickname:
+        # Reuse nickname from trial for frictionless conversion
+        nickname = existing_nickname
+        print(f"\n💻 Using device nickname: \"{nickname}\"")
+    else:
+        # Prompt for mandatory device nickname
+        print("")
+        print("💻 Enter a nickname for this device")
+        print("   (e.g., \"John's laptop\", \"Work MacBook\", \"Home iMac\")")
+        while True:
+            nickname = input("   Nickname: ").strip()
+            if nickname:
+                break
+            print("   ⚠️  Nickname is required. Please enter a name for this device.")
 
     # Final Verification and Device Registration
     verify_res = requests.post(
@@ -717,6 +807,9 @@ def authenticate(product: str):
             "last_verified": time.time(),
             "device_nickname": nickname
         }
+        # Clear trial data after successful paid activation
+        if trial_key in config:
+            del config[trial_key]
         save_config(config)
         print(f"✅ Success! Device \"{nickname}\" linked for {product_name}. Just a moment...")
         return True

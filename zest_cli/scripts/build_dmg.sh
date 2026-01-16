@@ -337,7 +337,7 @@ fi
 if [ "$LAUNCHED_FROM_FINDER" = true ]; then
     osascript -e "display dialog \"Zest CLI ($PRODUCT_NAME) installed!
 
-Open Terminal and run:
+Open Terminal and run a command, for example:
   zest list all files in Downloads
 
 Add to ~/.bashrc or ~/.zshrc (for using ? and * wildcards):
