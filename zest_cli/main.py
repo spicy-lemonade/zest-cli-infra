@@ -51,23 +51,27 @@ def _print_help():
     print("Usage: zest \"your query\"")
     print("")
     print("Model Management:")
-    print("  --model --fp    Switch to FP16 model")
-    print("  --model --q5    Switch to Q5 model")
+    print("  --model --lite         Switch to Lite model")
+    print("  --model --hot          Switch to Hot model")
+    print("  --model --extra-spicy  Switch to Extra Spicy model")
     print("")
     print("Account Management:")
-    print("  --logout           Log out current device (keeps model files)")
-    print("  --logout --fp      Log out from FP16 only")
-    print("  --logout --q5      Log out from Q5 only")
-    print("  --logout --remote  Log out ANY device remotely (requires OTP)")
+    print("  --logout               Log out current device (keeps model files)")
+    print("  --logout --lite        Log out from Lite only")
+    print("  --logout --hot         Log out from Hot only")
+    print("  --logout --extra-spicy Log out from Extra Spicy only")
+    print("  --logout --remote      Log out ANY device remotely (requires OTP)")
     print("")
-    print("  --uninstall     Full uninstall (deletes model + license + app)")
-    print("  --uninstall --fp   Uninstall FP16 only")
-    print("  --uninstall --q5   Uninstall Q5 only")
+    print("  --uninstall            Full uninstall (deletes model + license + app)")
+    print("  --uninstall --lite     Uninstall Lite only")
+    print("  --uninstall --hot      Uninstall Hot only")
+    print("  --uninstall --extra-spicy  Uninstall Extra Spicy only")
     print("")
     print("Updates:")
-    print("  --update        Check for and download updates")
-    print("  --update --fp   Check for FP16 updates")
-    print("  --update --q5   Check for Q5 updates")
+    print("  --update               Check for and download updates")
+    print("  --update --lite        Check for Lite updates")
+    print("  --update --hot         Check for Hot updates")
+    print("  --update --extra-spicy Check for Extra Spicy updates")
     print("")
     print("Info:")
     print("  --status        Show current model and license status")
@@ -155,30 +159,36 @@ def _handle_admin_flags(args: list[str]) -> bool:
         return True
 
     if "--model" in args:
-        if "--fp" in args or "--fp16" in args:
-            handle_model_switch("fp16")
-        elif "--q5" in args:
-            handle_model_switch("q5")
+        if "--lite" in args:
+            handle_model_switch("lite")
+        elif "--hot" in args:
+            handle_model_switch("hot")
+        elif "--extra-spicy" in args:
+            handle_model_switch("extra_spicy")
         else:
-            print("❌ Specify model: --model --fp or --model --q5")
+            print("❌ Specify model: --model --lite, --model --hot, or --model --extra-spicy")
         return True
 
     if "--logout" in args:
         product = None
         remote = "--remote" in args
-        if "--fp" in args or "--fp16" in args:
-            product = "fp16"
-        elif "--q5" in args:
-            product = "q5"
+        if "--lite" in args:
+            product = "lite"
+        elif "--hot" in args:
+            product = "hot"
+        elif "--extra-spicy" in args:
+            product = "extra_spicy"
         handle_logout(product, remote=remote)
         return True
 
     if "--uninstall" in args:
         product = None
-        if "--fp" in args or "--fp16" in args:
-            product = "fp16"
-        elif "--q5" in args:
-            product = "q5"
+        if "--lite" in args:
+            product = "lite"
+        elif "--hot" in args:
+            product = "hot"
+        elif "--extra-spicy" in args:
+            product = "extra_spicy"
         handle_uninstall(product)
         return True
 
@@ -187,10 +197,12 @@ def _handle_admin_flags(args: list[str]) -> bool:
 
 def _get_product_from_args(args: list[str]) -> str:
     """Get product from args or use active product."""
-    if "--fp" in args or "--fp16" in args:
-        return "fp16"
-    elif "--q5" in args:
-        return "q5"
+    if "--lite" in args:
+        return "lite"
+    elif "--hot" in args:
+        return "hot"
+    elif "--extra-spicy" in args:
+        return "extra_spicy"
     else:
         return get_active_product()
 
@@ -382,7 +394,7 @@ def main():
         print("❌ No Zest models are installed.")
         print("")
         print("To install Zest:")
-        print("  1. Download Zest-FP16.dmg or Zest-Q5.dmg")
+        print("  1. Download Zest-Lite.dmg, Zest-Hot.dmg, or Zest-Extra-Spicy.dmg")
         print("  2. Drag the app to Applications")
         print("  3. Run 'zest' from Terminal")
         print("")

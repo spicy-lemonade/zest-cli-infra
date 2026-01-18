@@ -12,7 +12,7 @@ import json
 import requests
 
 from config import (
-    ZEST_DIR, MODEL_PATH_FP16, MODEL_PATH_Q5, PRODUCTS, APP_PATHS,
+    ZEST_DIR, MODEL_PATH_LITE, MODEL_PATH_HOT, MODEL_PATH_EXTRA_SPICY, PRODUCTS, APP_PATHS,
     API_BASE, VERSION, MODEL_VERSION, UPDATE_CHECK_INTERVAL, AFFIRMATIVE,
     load_config, save_config
 )
@@ -21,7 +21,7 @@ from config import (
 def get_active_product() -> str | None:
     """
     Determine which product to use.
-    Priority: 1) User preference, 2) fp16 if available, 3) q5 if available
+    Priority: 1) User preference, 2) extra_spicy if available, 3) hot if available, 4) lite if available
     Only considers products where the app bundle is installed (DMG mode).
     Returns None if no models are installed.
     """
@@ -29,24 +29,26 @@ def get_active_product() -> str | None:
     preferred = config.get("active_product")
 
     # If user has a preference and both model and app exist, use it
-    if preferred:
+    if preferred and preferred in PRODUCTS:
         app_exists = os.path.exists(APP_PATHS.get(preferred, ""))
         model_exists = os.path.exists(PRODUCTS[preferred]["path"])
         if app_exists and model_exists:
             return preferred
 
-    # Otherwise, prefer fp16 over q5 if available AND app is installed
-    for product in ["fp16", "q5"]:
+    # Otherwise, prefer extra_spicy > hot > lite if available AND app is installed
+    for product in ["extra_spicy", "hot", "lite"]:
         app_exists = os.path.exists(APP_PATHS[product])
         model_exists = os.path.exists(PRODUCTS[product]["path"])
         if app_exists and model_exists:
             return product
 
     # Fallback: if no app bundle but model exists, still allow (dev/manual mode)
-    if os.path.exists(MODEL_PATH_FP16):
-        return "fp16"
-    if os.path.exists(MODEL_PATH_Q5):
-        return "q5"
+    if os.path.exists(MODEL_PATH_EXTRA_SPICY):
+        return "extra_spicy"
+    if os.path.exists(MODEL_PATH_HOT):
+        return "hot"
+    if os.path.exists(MODEL_PATH_LITE):
+        return "lite"
 
     return None
 

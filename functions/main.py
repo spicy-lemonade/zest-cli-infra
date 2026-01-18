@@ -15,13 +15,15 @@ initialize_app()
 # Configuration constants
 MAX_DEVICES_PER_PRODUCT = 2
 OTP_EXPIRY_MINUTES = 10
-VALID_PRODUCTS = ["fp16", "q5"]
+VALID_PRODUCTS = ["lite", "hot", "extra_spicy"]
 TRIAL_DURATION_DAYS = 5
 
 # Polar.sh product IDs (from sandbox dashboard)
+# TODO: Update these with actual Polar product IDs for the new 3-tier structure
 POLAR_PRODUCT_IDS = {
-    "q5": "b85b0e75-2c8b-46ec-81ac-5e6548e5c915",
-    "fp16": "ebca85ec-20cd-4a53-a20b-3d64a79f399e",
+    "lite": "PLACEHOLDER_LITE_PRODUCT_ID",
+    "hot": "PLACEHOLDER_HOT_PRODUCT_ID",
+    "extra_spicy": "PLACEHOLDER_EXTRA_SPICY_PRODUCT_ID",
 }
 
 
@@ -140,7 +142,7 @@ def get_trial_status(license_data: dict, product: str) -> dict:
 def create_checkout(req: https_fn.Request) -> https_fn.Response:
     """
     Create a Polar.sh checkout session for a product.
-    Expects JSON: {"product": "q5"} or {"product": "fp16"}
+    Expects JSON: {"product": "lite"}, {"product": "hot"}, or {"product": "extra_spicy"}
     Returns: {"checkout_url": "https://..."}
     """
     try:
@@ -313,18 +315,23 @@ def polar_webhook(req: https_fn.Request) -> https_fn.Response:
         print(f"Product data: name={product.get('name')}, id={product_id}")
 
         # Match by product ID first (more reliable), then fall back to name
-        if product_id == "ebca85ec-20cd-4a53-a20b-3d64a79f399e":
-            product_type = "fp16"
-        elif product_id == "b85b0e75-2c8b-46ec-81ac-5e6548e5c915":
-            product_type = "q5"
-        elif "fp16" in product_name or "fp" in product_name or "extra spicy" in product_name:
-            product_type = "fp16"
-        elif "q5" in product_name or "quantized" in product_name or "lite" in product_name:
-            product_type = "q5"
+        # TODO: Update these with actual Polar product IDs
+        if product_id == "PLACEHOLDER_LITE_PRODUCT_ID":
+            product_type = "lite"
+        elif product_id == "PLACEHOLDER_HOT_PRODUCT_ID":
+            product_type = "hot"
+        elif product_id == "PLACEHOLDER_EXTRA_SPICY_PRODUCT_ID":
+            product_type = "extra_spicy"
+        elif "lite" in product_name or "qwen3" in product_name or "4b" in product_name:
+            product_type = "lite"
+        elif "hot" in product_name or "coder" in product_name and "q5" in product_name:
+            product_type = "hot"
+        elif "extra" in product_name or "spicy" in product_name or "fp16" in product_name:
+            product_type = "extra_spicy"
         else:
-            # Default to q5 if unclear
-            print(f"Warning: Could not determine product type, defaulting to q5")
-            product_type = "q5"
+            # Default to lite if unclear
+            print(f"Warning: Could not determine product type, defaulting to lite")
+            product_type = "lite"
 
         paid_field, devices_field, order_field = get_product_fields(product_type)
 
@@ -378,7 +385,7 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
     Generate a 6-digit OTP and send it to the user's email via Resend.
     Expects JSON: {
         "email": "user@example.com",
-        "product": "fp16" or "q5",
+        "product": "lite", "hot", or "extra_spicy",
         "flow_type": "activation" or "trial" (optional, defaults to "activation"),
         "device_id": "HARDWARE-UUID" (required for trial flow)
     }
@@ -393,7 +400,7 @@ def send_otp(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("Invalid JSON", status=400)
 
     email = data.get("email")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
     flow_type = data.get("flow_type", "activation")
     device_id = data.get("device_id")
 
@@ -595,7 +602,7 @@ def start_trial(req: https_fn.Request) -> https_fn.Response:
     Expects JSON: {
         "email": "user@example.com",
         "otp_code": "123456",
-        "product": "q5" or "fp16",
+        "product": "lite", "hot", or "extra_spicy",
         "device_id": "HARDWARE-UUID",
         "device_name": "MacBook Pro"
     }
@@ -607,7 +614,7 @@ def start_trial(req: https_fn.Request) -> https_fn.Response:
 
     email = data.get("email")
     otp_code = data.get("otp_code")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
     device_id = data.get("device_id")
     device_name = data.get("device_name")
 
@@ -749,7 +756,7 @@ def check_trial_status(req: https_fn.Request) -> https_fn.Response:
     Check trial/license status for a user and product.
     Expects JSON: {
         "email": "user@example.com",
-        "product": "q5" or "fp16",
+        "product": "lite", "hot", or "extra_spicy",
         "device_id": "HARDWARE-UUID"
     }
     """
@@ -759,7 +766,7 @@ def check_trial_status(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("Invalid JSON", status=400)
 
     email = data.get("email")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
     device_id = data.get("device_id")
 
     if not email:
@@ -827,7 +834,7 @@ def verify_otp_and_register(req: https_fn.Request) -> https_fn.Response:
     """
     Verify OTP and register the device for a specific product.
     Expects JSON: {"email": "...", "otp": "123456", "device_uuid": "uuid",
-                   "device_nickname": "My Mac", "product": "fp16" or "q5"}
+                   "device_nickname": "My Mac", "product": "lite", "hot", or "extra_spicy"}
     """
     try:
         data = req.get_json()
@@ -838,7 +845,7 @@ def verify_otp_and_register(req: https_fn.Request) -> https_fn.Response:
     otp = data.get("otp")
     device_uuid = data.get("device_uuid")
     device_nickname = data.get("device_nickname")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
 
     if not all([email, otp, device_uuid, device_nickname]):
         return https_fn.Response("Missing required fields", status=400)
@@ -940,7 +947,7 @@ def validate_device(req: https_fn.Request) -> https_fn.Response:
     """
     Validate that a device is registered and licensed for a specific product.
     Supports both paid licenses and active trials.
-    Expects JSON: {"email": "...", "device_uuid": "uuid", "product": "fp16" or "q5"}
+    Expects JSON: {"email": "...", "device_uuid": "uuid", "product": "lite", "hot", or "extra_spicy"}
 
     Returns JSON with status:
     - "valid": Paid license, device registered
@@ -955,7 +962,7 @@ def validate_device(req: https_fn.Request) -> https_fn.Response:
 
     email = data.get("email")
     device_uuid = data.get("device_uuid")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
 
     if not email or not device_uuid:
         return https_fn.Response("Missing email or device_uuid", status=400)
@@ -1027,7 +1034,7 @@ def replace_device(req: https_fn.Request) -> https_fn.Response:
     """
     Replace an old device with a new one for a specific product.
     Expects JSON: {"email": "...", "old_device_uuid": "uuid", "new_device_uuid": "uuid",
-                   "new_device_nickname": "New Mac", "product": "fp16" or "q5"}
+                   "new_device_nickname": "New Mac", "product": "lite", "hot", or "extra_spicy"}
     """
     try:
         data = req.get_json()
@@ -1038,7 +1045,7 @@ def replace_device(req: https_fn.Request) -> https_fn.Response:
     old_device_uuid = data.get("old_device_uuid")
     new_device_uuid = data.get("new_device_uuid")
     new_device_nickname = data.get("new_device_nickname")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
 
     if not all([email, old_device_uuid, new_device_uuid, new_device_nickname]):
         return https_fn.Response("Missing required fields", status=400)
@@ -1088,7 +1095,7 @@ def list_devices(req: https_fn.Request) -> https_fn.Response:
     """
     List all registered devices for a user's product license.
     Requires OTP verification for security.
-    Expects JSON: {"email": "...", "otp": "123456", "product": "fp16" or "q5"}
+    Expects JSON: {"email": "...", "otp": "123456", "product": "lite", "hot", or "extra_spicy"}
     Returns JSON: {"devices": [{"uuid": "...", "nickname": "...", "registered_at": "..."}]}
     """
     try:
@@ -1098,7 +1105,7 @@ def list_devices(req: https_fn.Request) -> https_fn.Response:
 
     email = data.get("email")
     otp = data.get("otp")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
 
     if not email or not otp:
         return https_fn.Response("Missing email or otp", status=400)
@@ -1168,7 +1175,7 @@ def list_devices(req: https_fn.Request) -> https_fn.Response:
 def deregister_device(req: https_fn.Request) -> https_fn.Response:
     """
     Remove a device from the license for a specific product.
-    Expects JSON: {"email": "...", "device_uuid": "uuid", "product": "fp16" or "q5"}
+    Expects JSON: {"email": "...", "device_uuid": "uuid", "product": "lite", "hot", or "extra_spicy"}
     """
     try:
         data = req.get_json()
@@ -1177,7 +1184,7 @@ def deregister_device(req: https_fn.Request) -> https_fn.Response:
 
     email = data.get("email")
     device_uuid = data.get("device_uuid")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
 
     if not email or not device_uuid:
         return https_fn.Response("Missing email or device_uuid", status=400)
@@ -1215,7 +1222,7 @@ def license_heartbeat(req: https_fn.Request) -> https_fn.Response:
     """
     Biweekly license validation ping from the CLI.
     Updates last_validated timestamp for the device for a specific product.
-    Expects JSON: {"email": "...", "device_uuid": "uuid", "product": "fp16" or "q5"}
+    Expects JSON: {"email": "...", "device_uuid": "uuid", "product": "lite", "hot", or "extra_spicy"}
 
     The CLI should call this every 2 weeks. If the ping fails due to network
     issues, the CLI can continue operating using cached validation.
@@ -1227,7 +1234,7 @@ def license_heartbeat(req: https_fn.Request) -> https_fn.Response:
 
     email = data.get("email")
     device_uuid = data.get("device_uuid")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
 
     if not email or not device_uuid:
         return https_fn.Response("Missing email or device_uuid", status=400)
@@ -1284,7 +1291,7 @@ def get_checkout_url(req: https_fn.Request) -> https_fn.Response:
     """
     Generate a Polar checkout URL for trial-to-paid conversion.
     Pre-fills the user's email for seamless checkout.
-    Expects JSON: {"email": "user@example.com", "product": "q5" or "fp16"}
+    Expects JSON: {"email": "user@example.com", "product": "lite", "hot", or "extra_spicy"}
     """
     try:
         data = req.get_json()
@@ -1292,7 +1299,7 @@ def get_checkout_url(req: https_fn.Request) -> https_fn.Response:
         return https_fn.Response("Invalid JSON", status=400)
 
     email = data.get("email")
-    product = data.get("product", "q5")
+    product = data.get("product", "lite")
 
     if not email:
         return https_fn.Response("Missing email", status=400)
@@ -1341,8 +1348,9 @@ def get_checkout_url(req: https_fn.Request) -> https_fn.Response:
 
 # Model file configuration
 MODEL_FILES = {
-    "fp16": "qwen3_4b_fp16.gguf",
-    "q5": "qwen3_4b_Q5_K_M.gguf"
+    "lite": "qwen3_4b_Q5_K_M.gguf",
+    "hot": "qwen2_5_coder_7b_Q5_K_M.gguf",
+    "extra_spicy": "qwen2_5_coder_7b_fp16.gguf"
 }
 GCS_BUCKET = "nlcli-models"
 
@@ -1362,7 +1370,7 @@ def check_version(req: https_fn.Request) -> https_fn.Response:
     GET or POST with optional JSON: {
         "current_version": "1.0.0",
         "current_model_version": "1.0.0",
-        "product": "fp16" or "q5"
+        "product": "lite", "hot", or "extra_spicy"
     }
 
     Response includes:
@@ -1378,19 +1386,19 @@ def check_version(req: https_fn.Request) -> https_fn.Response:
     """
     current_version = None
     current_model_version = None
-    product = "q5"
+    product = "lite"
 
     if req.method == "POST":
         try:
             data = req.get_json()
             current_version = data.get("current_version")
             current_model_version = data.get("current_model_version")
-            product = data.get("product", "q5")
+            product = data.get("product", "lite")
         except Exception:
             pass
 
     if product not in VALID_PRODUCTS:
-        product = "q5"
+        product = "lite"
 
     db = firestore.client()
 
@@ -1401,7 +1409,7 @@ def check_version(req: https_fn.Request) -> https_fn.Response:
     version_ref = db.collection("versions").document("current")
     version_doc = version_ref.get()
 
-    model_filename = MODEL_FILES.get(product, MODEL_FILES["q5"])
+    model_filename = MODEL_FILES.get(product, MODEL_FILES["lite"])
     model_download_url = f"https://storage.googleapis.com/{GCS_BUCKET}/{model_filename}"
 
     if not version_doc.exists:

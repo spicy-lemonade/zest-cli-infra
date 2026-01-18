@@ -2,7 +2,7 @@
 
 # Zest DMG Build Script
 # Creates a distributable DMG containing the Zest CLI and model
-# Usage: ./build_dmg.sh [fp16|q5]
+# Usage: ./build_dmg.sh [lite|hot|extra_spicy]
 
 set -e
 
@@ -28,21 +28,26 @@ if [ "$VERSION" != "$CONFIG_PY_VERSION" ]; then
 fi
 
 # Product configuration
-PRODUCT="${1:-q5}"
+PRODUCT="${1:-lite}"
 case "$PRODUCT" in
-    fp16|fp)
-        PRODUCT="fp16"
-        MODEL_NAME="qwen3_4b_fp16.gguf"
-        PRODUCT_SUFFIX="-FP16"
-        ;;
-    q5)
+    lite)
         MODEL_NAME="qwen3_4b_Q5_K_M.gguf"
-        PRODUCT_SUFFIX="-Q5"
+        PRODUCT_SUFFIX="-Lite"
+        ;;
+    hot)
+        MODEL_NAME="qwen2_5_coder_7b_Q5_K_M.gguf"
+        PRODUCT_SUFFIX="-Hot"
+        ;;
+    extra_spicy|extra-spicy)
+        PRODUCT="extra_spicy"
+        MODEL_NAME="qwen2_5_coder_7b_fp16.gguf"
+        PRODUCT_SUFFIX="-Extra-Spicy"
         ;;
     *)
-        echo "Usage: $0 [fp16|q5]"
-        echo "  fp16  - Build DMG with full precision model (~8GB)"
-        echo "  q5    - Build DMG with quantized model (~3GB)"
+        echo "Usage: $0 [lite|hot|extra_spicy]"
+        echo "  lite        - Build DMG with Lite model (~3GB)"
+        echo "  hot         - Build DMG with Hot model (~5GB)"
+        echo "  extra_spicy - Build DMG with Extra Spicy model (~15GB)"
         exit 1
         ;;
 esac
@@ -210,14 +215,18 @@ RESOURCES_DIR="$(dirname "$SCRIPT_DIR")/Resources"
 
 # Detect product type from app bundle name
 APP_NAME="$(basename "$(dirname "$(dirname "$SCRIPT_DIR")")")"
-if [[ "$APP_NAME" == *"FP16"* ]]; then
-    MODEL_NAME="qwen3_4b_fp16.gguf"
-    PRODUCT_NAME="FP16"
-    PRODUCT_LOWER="fp16"
+if [[ "$APP_NAME" == *"Extra-Spicy"* ]]; then
+    MODEL_NAME="qwen2_5_coder_7b_fp16.gguf"
+    PRODUCT_NAME="Extra Spicy"
+    PRODUCT_LOWER="extra_spicy"
+elif [[ "$APP_NAME" == *"Hot"* ]]; then
+    MODEL_NAME="qwen2_5_coder_7b_Q5_K_M.gguf"
+    PRODUCT_NAME="Hot"
+    PRODUCT_LOWER="hot"
 else
     MODEL_NAME="qwen3_4b_Q5_K_M.gguf"
-    PRODUCT_NAME="Q5"
-    PRODUCT_LOWER="q5"
+    PRODUCT_NAME="Lite"
+    PRODUCT_LOWER="lite"
 fi
 
 # Check if launched from Finder (will show dialog AFTER first-run setup)
@@ -272,23 +281,35 @@ if [ ! -f "$SETUP_MARKER" ]; then
 #!/bin/bash
 # Zest CLI Wrapper - Survives app deletion for cleanup
 
-FP16_APP="/Applications/Zest-FP16.app"
-Q5_APP="/Applications/Zest-Q5.app"
+LITE_APP="/Applications/Zest-Lite.app"
+HOT_APP="/Applications/Zest-Hot.app"
+EXTRA_SPICY_APP="/Applications/Zest-Extra-Spicy.app"
 
-# Find which app to use
-if [ -d "$FP16_APP" ] && [ -d "$Q5_APP" ]; then
-    CONFIG_FILE="$HOME/Library/Application Support/Zest/config.json"
-    if [ -f "$CONFIG_FILE" ]; then
-        ACTIVE=$(grep -o '"active_product": *"[^"]*"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
-        [ "$ACTIVE" = "fp16" ] && APP_PATH="$FP16_APP" || APP_PATH="$Q5_APP"
-    else
-        APP_PATH="$FP16_APP"
+# Find which app to use (prefer extra_spicy > hot > lite)
+CONFIG_FILE="$HOME/Library/Application Support/Zest/config.json"
+APP_PATH=""
+
+if [ -f "$CONFIG_FILE" ]; then
+    ACTIVE=$(grep -o '"active_product": *"[^"]*"' "$CONFIG_FILE" 2>/dev/null | cut -d'"' -f4)
+    case "$ACTIVE" in
+        extra_spicy) [ -d "$EXTRA_SPICY_APP" ] && APP_PATH="$EXTRA_SPICY_APP" ;;
+        hot) [ -d "$HOT_APP" ] && APP_PATH="$HOT_APP" ;;
+        lite) [ -d "$LITE_APP" ] && APP_PATH="$LITE_APP" ;;
+    esac
+fi
+
+# Fallback to any available app (extra_spicy > hot > lite)
+if [ -z "$APP_PATH" ]; then
+    if [ -d "$EXTRA_SPICY_APP" ]; then
+        APP_PATH="$EXTRA_SPICY_APP"
+    elif [ -d "$HOT_APP" ]; then
+        APP_PATH="$HOT_APP"
+    elif [ -d "$LITE_APP" ]; then
+        APP_PATH="$LITE_APP"
     fi
-elif [ -d "$FP16_APP" ]; then
-    APP_PATH="$FP16_APP"
-elif [ -d "$Q5_APP" ]; then
-    APP_PATH="$Q5_APP"
-else
+fi
+
+if [ -z "$APP_PATH" ]; then
     # No apps found - use shell cleanup script (no Python required)
     SHELL_CLEANUP="$HOME/.zest/cleanup.sh"
     PYTHON_CLI="$HOME/.zest/main.py"
@@ -428,12 +449,21 @@ echo ""
 echo "📦 DMG: $DMG_PATH"
 echo "📏 Size: $(du -h "$DMG_PATH" | cut -f1)"
 echo ""
-echo "To build the other model, run:"
-if [ "$PRODUCT" = "fp16" ]; then
-    echo "  ./build_dmg.sh q5"
-else
-    echo "  ./build_dmg.sh fp16"
-fi
+echo "To build other models, run:"
+case "$PRODUCT" in
+    lite)
+        echo "  ./build_dmg.sh hot"
+        echo "  ./build_dmg.sh extra_spicy"
+        ;;
+    hot)
+        echo "  ./build_dmg.sh lite"
+        echo "  ./build_dmg.sh extra_spicy"
+        ;;
+    extra_spicy)
+        echo "  ./build_dmg.sh lite"
+        echo "  ./build_dmg.sh hot"
+        ;;
+esac
 echo ""
 echo "Next steps:"
 echo "1. Test the DMG by mounting and installing"

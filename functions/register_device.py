@@ -14,7 +14,7 @@ except ImportError:
     sys.exit(1)
 
 
-def register_device(email: str, device_uuid: str, nickname: str, product: str = "q5"):
+def register_device(email: str, device_uuid: str, nickname: str, product: str = "lite"):
     """Pre-register a device on an existing license."""
 
     try:
@@ -66,6 +66,6 @@ if __name__ == "__main__":
     email = sys.argv[1]
     device_uuid = sys.argv[2]
     nickname = sys.argv[3]
-    product = sys.argv[4] if len(sys.argv) > 4 else "q5"
+    product = sys.argv[4] if len(sys.argv) > 4 else "lite"
 
     register_device(email, device_uuid, nickname, product)

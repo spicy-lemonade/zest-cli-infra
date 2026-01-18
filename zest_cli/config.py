@@ -11,8 +11,9 @@ MODEL_VERSION = "1.0.0"
 
 # --- Paths ---
 ZEST_DIR = os.path.expanduser("~/.zest")
-MODEL_PATH_FP16 = os.path.join(ZEST_DIR, "qwen3_4b_fp16.gguf")
-MODEL_PATH_Q5 = os.path.join(ZEST_DIR, "qwen3_4b_Q5_K_M.gguf")
+MODEL_PATH_LITE = os.path.join(ZEST_DIR, "qwen3_4b_Q5_K_M.gguf")
+MODEL_PATH_HOT = os.path.join(ZEST_DIR, "qwen2_5_coder_7b_Q5_K_M.gguf")
+MODEL_PATH_EXTRA_SPICY = os.path.join(ZEST_DIR, "qwen2_5_coder_7b_fp16.gguf")
 CONFIG_DIR = os.path.expanduser("~/Library/Application Support/Zest")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
@@ -26,14 +27,16 @@ TRIAL_CHECK_INTERVAL = 30  # TODO: Change to 86400 (24 hours) for production
 
 # --- App Bundles ---
 APP_PATHS = {
-    "fp16": "/Applications/Zest-FP16.app",
-    "q5": "/Applications/Zest-Q5.app"
+    "lite": "/Applications/Zest-Lite.app",
+    "hot": "/Applications/Zest-Hot.app",
+    "extra_spicy": "/Applications/Zest-Extra-Spicy.app"
 }
 
 # --- Products ---
 PRODUCTS = {
-    "fp16": {"path": MODEL_PATH_FP16, "name": "FP16 (Full Precision)"},
-    "q5": {"path": MODEL_PATH_Q5, "name": "Q5 (Quantized)"}
+    "lite": {"path": MODEL_PATH_LITE, "name": "Lite"},
+    "hot": {"path": MODEL_PATH_HOT, "name": "Hot"},
+    "extra_spicy": {"path": MODEL_PATH_EXTRA_SPICY, "name": "Extra Spicy"}
 }
 
 # --- Response Constants ---

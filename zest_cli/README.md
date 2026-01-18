@@ -92,12 +92,14 @@ zest --status
 **Example output**:
 ```
 🍋 Zest Status (CLI v1.0.0)
-   Active model: FP16 (Full Precision)
+   Active model: Pro (Qwen2.5 Coder 7B FP16)
 
-   FP16 (Full Precision):
-      Installed: ✅ | Licensed: ✅ | Model v1.0.0
-   Q5 (Quantized):
+   Base (Qwen3 4B Q5):
       Installed: ❌ | Licensed: ❌ | Model v1.0.0
+   Mid (Qwen2.5 Coder 7B Q5):
+      Installed: ❌ | Licensed: ❌ | Model v1.0.0
+   Pro (Qwen2.5 Coder 7B FP16):
+      Installed: ✅ | Licensed: ✅ | Model v1.0.0
 ```
 
 ### `zest --logout`
@@ -108,8 +110,9 @@ Deregisters device and removes license data, but **keeps model files** on disk. 
 zest --logout
 
 # Logout from specific product
-zest --logout --fp
-zest --logout --q5
+zest --logout --base
+zest --logout --mid
+zest --logout --pro
 ```
 
 **What gets removed**:
@@ -129,8 +132,9 @@ Complete removal: deregisters device, removes license data, **deletes model file
 zest --uninstall
 
 # Uninstall specific product
-zest --uninstall --fp
-zest --uninstall --q5
+zest --uninstall --base
+zest --uninstall --mid
+zest --uninstall --pro
 ```
 
 **What gets removed**:
@@ -162,8 +166,8 @@ rm -rf ~/Library/Application\ Support/Zest
 
 **Prerequisites**:
 - Backend deployed
-- `API_BASE` configured in `main.py`
-- Model at `~/.zest/gemma3_4b_Q4_K_M.gguf`
+- `API_BASE` configured in `config.py`
+- Model at `~/.zest/` (Base: qwen3_4b_Q5_K_M.gguf, Mid: qwen2_5_coder_7b_Q5_K_M.gguf, Pro: qwen2_5_coder_7b_fp16.gguf)
 - Dependencies installed
 
 ### Test 1: First-Time Activation
@@ -209,11 +213,11 @@ python main.py --logout
 
 | Setting | Location | Default |
 |---------|----------|---------|
-| API Endpoint | `main.py` line 14 | `europe-west1-nl-cli-dev.cloudfunctions.net` |
-| Model Path | `main.py` line 13 | `~/.zest/gemma3_4b_Q4_K_M.gguf` |
-| Lease Duration | `main.py` line 17 | 14 days |
-| Device Limit | `../functions/main.py` line 15 | 2 devices |
-| OTP Expiry | `../functions/main.py` line 16 | 5 minutes |
+| API Endpoint | `config.py` | `europe-west1-nl-cli-dev.cloudfunctions.net` |
+| Model Paths | `config.py` | `~/.zest/*.gguf` |
+| Lease Duration | `config.py` | 14 days |
+| Device Limit | `../functions/main.py` | 2 devices |
+| OTP Expiry | `../functions/main.py` | 10 minutes |
 
 ## 🐛 Troubleshooting
 
@@ -236,15 +240,17 @@ python main.py --logout
 
 **Wrong command or repeats query**
 - Don't include "zest" in test queries (see Usage section)
-- Model exists: `ls -lh ~/.zest/gemma3_4b_Q4_K_M.gguf`
+- Model exists: `ls -lh ~/.zest/*.gguf`
 - Test examples:
   - `python main.py "list files"` → `ls`
   - `python main.py "show running processes"` → `ps aux`
   - `python main.py "show disk usage"` → `df -h`
 
 **Model not found**
-- Download to `~/.zest/qwen3_4b_fp16.gguf`
-- Update `MODEL_PATH` in `main.py` line 13
+- Download to `~/.zest/` with one of:
+  - Base: `qwen3_4b_Q5_K_M.gguf`
+  - Mid: `qwen2_5_coder_7b_Q5_K_M.gguf`
+  - Pro: `qwen2_5_coder_7b_fp16.gguf`
 
 ### Testing Issues
 
@@ -273,8 +279,12 @@ See `SIGNING_GUIDE.md` for details.
 
 ```
 licenses/{email}
-  ├─ is_paid: boolean
-  ├─ devices: array[{uuid, nickname, registered_at}]
+  ├─ base_is_paid: boolean
+  ├─ base_devices: array[{uuid, nickname, registered_at}]
+  ├─ mid_is_paid: boolean
+  ├─ mid_devices: array[{uuid, nickname, registered_at}]
+  ├─ pro_is_paid: boolean
+  ├─ pro_devices: array[{uuid, nickname, registered_at}]
   ├─ otp_code: string (temporary)
   ├─ otp_expiry: datetime (temporary)
   └─ created_at: timestamp

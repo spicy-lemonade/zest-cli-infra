@@ -160,7 +160,7 @@ _Note: right now there is only one email `info@zestcli.com` so if anybody other 
 
 After building the dmg you can open it via:
 
-- Run `open ~/spicy_lemonade/natural-language-cli-infra/zest_cli/dist/Zest-Q5-1.0.0.dmg`
+- Run `open ~/spicy_lemonade/natural-language-cli-infra/zest_cli/dist/Zest-Base-1.0.0.dmg`
 <img width="785" height="455" alt="Screenshot 2025-12-31 at 20 57 31" src="https://github.com/user-attachments/assets/798d6302-ceb3-44ad-b495-97dc01fdc6e7" />
 
 - Drag to applications.

@@ -13,12 +13,14 @@ API_BASE="https://europe-west1-nl-cli.cloudfunctions.net"
 WRAPPER_PATH="/usr/local/bin/zest"
 
 # Model paths
-MODEL_PATH_FP16="$ZEST_DIR/qwen3_4b_fp16.gguf"
-MODEL_PATH_Q5="$ZEST_DIR/qwen3_4b_Q5_K_M.gguf"
+MODEL_PATH_LITE="$ZEST_DIR/qwen3_4b_Q5_K_M.gguf"
+MODEL_PATH_HOT="$ZEST_DIR/qwen2_5_coder_7b_Q5_K_M.gguf"
+MODEL_PATH_EXTRA_SPICY="$ZEST_DIR/qwen2_5_coder_7b_fp16.gguf"
 
 # App bundle paths
-FP16_APP="/Applications/Zest-FP16.app"
-Q5_APP="/Applications/Zest-Q5.app"
+LITE_APP="/Applications/Zest-Lite.app"
+HOT_APP="/Applications/Zest-Hot.app"
+EXTRA_SPICY_APP="/Applications/Zest-Extra-Spicy.app"
 
 # Get hardware UUID for deregistration
 get_hw_id() {
@@ -82,15 +84,27 @@ uninstall_product() {
     local app_path
     local product_name
 
-    if [ "$product" = "fp16" ]; then
-        model_path="$MODEL_PATH_FP16"
-        app_path="$FP16_APP"
-        product_name="FP16 (Full Precision)"
-    else
-        model_path="$MODEL_PATH_Q5"
-        app_path="$Q5_APP"
-        product_name="Q5 (Quantized)"
-    fi
+    case "$product" in
+        lite)
+            model_path="$MODEL_PATH_LITE"
+            app_path="$LITE_APP"
+            product_name="Lite"
+            ;;
+        hot)
+            model_path="$MODEL_PATH_HOT"
+            app_path="$HOT_APP"
+            product_name="Hot"
+            ;;
+        extra_spicy)
+            model_path="$MODEL_PATH_EXTRA_SPICY"
+            app_path="$EXTRA_SPICY_APP"
+            product_name="Extra Spicy"
+            ;;
+        *)
+            echo "❌ Unknown product: $product"
+            return 1
+            ;;
+    esac
 
     # Deregister from server if we have license data
     local email
@@ -125,17 +139,19 @@ uninstall_product() {
     fi
 }
 
-# Remove config entry for a product (simplified - just removes the whole config if both gone)
+# Remove config entry for a product (simplified - just removes the whole config if all gone)
 cleanup_config() {
-    # Check if any licenses remain
-    local fp16_model_exists=false
-    local q5_model_exists=false
+    # Check if any models remain
+    local lite_model_exists=false
+    local hot_model_exists=false
+    local extra_spicy_model_exists=false
 
-    [ -f "$MODEL_PATH_FP16" ] && fp16_model_exists=true
-    [ -f "$MODEL_PATH_Q5" ] && q5_model_exists=true
+    [ -f "$MODEL_PATH_LITE" ] && lite_model_exists=true
+    [ -f "$MODEL_PATH_HOT" ] && hot_model_exists=true
+    [ -f "$MODEL_PATH_EXTRA_SPICY" ] && extra_spicy_model_exists=true
 
     # If no models left, clean up everything
-    if ! $fp16_model_exists && ! $q5_model_exists; then
+    if ! $lite_model_exists && ! $hot_model_exists && ! $extra_spicy_model_exists; then
         rm -f "$CONFIG_FILE"
         [ -d "$CONFIG_DIR" ] && rmdir "$CONFIG_DIR" 2>/dev/null || true
 
@@ -158,13 +174,15 @@ full_cleanup() {
     echo "🍋 Cleanup complete."
 
     # Check if we should remove the wrapper
-    local fp16_exists=false
-    local q5_exists=false
-    [ -d "$FP16_APP" ] && fp16_exists=true
-    [ -d "$Q5_APP" ] && q5_exists=true
+    local lite_exists=false
+    local hot_exists=false
+    local extra_spicy_exists=false
+    [ -d "$LITE_APP" ] && lite_exists=true
+    [ -d "$HOT_APP" ] && hot_exists=true
+    [ -d "$EXTRA_SPICY_APP" ] && extra_spicy_exists=true
 
     # Only remove wrapper if no apps remain
-    if ! $fp16_exists && ! $q5_exists; then
+    if ! $lite_exists && ! $hot_exists && ! $extra_spicy_exists; then
         # Remove wrapper (may need sudo, so try without first)
         rm -f "$WRAPPER_PATH" 2>/dev/null || sudo rm -f "$WRAPPER_PATH" 2>/dev/null || true
 
@@ -178,23 +196,29 @@ show_status() {
     echo "🍋 Zest Status (Shell Fallback)"
     echo ""
 
-    local fp16_installed="❌"
-    local q5_installed="❌"
-    local fp16_app="❌"
-    local q5_app="❌"
+    local lite_installed="❌"
+    local hot_installed="❌"
+    local extra_spicy_installed="❌"
+    local lite_app="❌"
+    local hot_app="❌"
+    local extra_spicy_app="❌"
 
-    [ -f "$MODEL_PATH_FP16" ] && fp16_installed="✅"
-    [ -f "$MODEL_PATH_Q5" ] && q5_installed="✅"
-    [ -d "$FP16_APP" ] && fp16_app="✅"
-    [ -d "$Q5_APP" ] && q5_app="✅"
+    [ -f "$MODEL_PATH_LITE" ] && lite_installed="✅"
+    [ -f "$MODEL_PATH_HOT" ] && hot_installed="✅"
+    [ -f "$MODEL_PATH_EXTRA_SPICY" ] && extra_spicy_installed="✅"
+    [ -d "$LITE_APP" ] && lite_app="✅"
+    [ -d "$HOT_APP" ] && hot_app="✅"
+    [ -d "$EXTRA_SPICY_APP" ] && extra_spicy_app="✅"
 
-    echo "   FP16 (Full Precision):"
-    echo "      Model: $fp16_installed | App: $fp16_app"
-    echo "   Q5 (Quantized):"
-    echo "      Model: $q5_installed | App: $q5_app"
+    echo "   Lite:"
+    echo "      Model: $lite_installed | App: $lite_app"
+    echo "   Hot:"
+    echo "      Model: $hot_installed | App: $hot_app"
+    echo "   Extra Spicy:"
+    echo "      Model: $extra_spicy_installed | App: $extra_spicy_app"
     echo ""
 
-    if [ "$fp16_app" = "❌" ] && [ "$q5_app" = "❌" ]; then
+    if [ "$lite_app" = "❌" ] && [ "$hot_app" = "❌" ] && [ "$extra_spicy_app" = "❌" ]; then
         echo "   ⚠️  No app bundles found. Reinstall from DMG or run:"
         echo "      zest --uninstall"
     fi
@@ -207,15 +231,26 @@ handle_orphan() {
     local app_path
     local product_name
 
-    if [ "$product" = "fp16" ]; then
-        model_path="$MODEL_PATH_FP16"
-        app_path="$FP16_APP"
-        product_name="FP16 (Full Precision)"
-    else
-        model_path="$MODEL_PATH_Q5"
-        app_path="$Q5_APP"
-        product_name="Q5 (Quantized)"
-    fi
+    case "$product" in
+        lite)
+            model_path="$MODEL_PATH_LITE"
+            app_path="$LITE_APP"
+            product_name="Lite"
+            ;;
+        hot)
+            model_path="$MODEL_PATH_HOT"
+            app_path="$HOT_APP"
+            product_name="Hot"
+            ;;
+        extra_spicy)
+            model_path="$MODEL_PATH_EXTRA_SPICY"
+            app_path="$EXTRA_SPICY_APP"
+            product_name="Extra Spicy"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 
     # Check for DMG installation markers (setup marker, main.py, or license)
     local setup_marker="$ZEST_DIR/.${product}_setup_complete"
@@ -273,13 +308,18 @@ get_active_product() {
 
     if [ -n "$preferred" ]; then
         local model_path
-        [ "$preferred" = "fp16" ] && model_path="$MODEL_PATH_FP16" || model_path="$MODEL_PATH_Q5"
+        case "$preferred" in
+            lite) model_path="$MODEL_PATH_LITE" ;;
+            hot) model_path="$MODEL_PATH_HOT" ;;
+            extra_spicy) model_path="$MODEL_PATH_EXTRA_SPICY" ;;
+        esac
         [ -f "$model_path" ] && echo "$preferred" && return
     fi
 
-    # Fallback: prefer fp16 over q5
-    [ -f "$MODEL_PATH_FP16" ] && echo "fp16" && return
-    [ -f "$MODEL_PATH_Q5" ] && echo "q5" && return
+    # Fallback: prefer extra_spicy > hot > lite
+    [ -f "$MODEL_PATH_EXTRA_SPICY" ] && echo "extra_spicy" && return
+    [ -f "$MODEL_PATH_HOT" ] && echo "hot" && return
+    [ -f "$MODEL_PATH_LITE" ] && echo "lite" && return
 
     echo ""
 }
@@ -298,8 +338,9 @@ main() {
             --uninstall) has_uninstall=true ;;
             --status) has_status=true ;;
             --help|-h) has_help=true ;;
-            --fp|--fp16) product="fp16" ;;
-            --q5) product="q5" ;;
+            --lite) product="lite" ;;
+            --hot) product="hot" ;;
+            --extra-spicy) product="extra_spicy" ;;
         esac
     done
 
@@ -311,10 +352,11 @@ main() {
         echo "For full functionality, reinstall Zest from the DMG."
         echo ""
         echo "Available commands:"
-        echo "  --uninstall        Remove all Zest files and licenses"
-        echo "  --uninstall --fp   Remove FP16 only"
-        echo "  --uninstall --q5   Remove Q5 only"
-        echo "  --status           Show installation status"
+        echo "  --uninstall              Remove all Zest files and licenses"
+        echo "  --uninstall --lite       Remove Lite only"
+        echo "  --uninstall --hot        Remove Hot only"
+        echo "  --uninstall --extra-spicy  Remove Extra Spicy only"
+        echo "  --status                 Show installation status"
         exit 0
     fi
 
@@ -331,36 +373,66 @@ main() {
             uninstall_product "$product"
         else
             # Determine what to uninstall
-            local fp16_exists=false
-            local q5_exists=false
-            [ -f "$MODEL_PATH_FP16" ] && fp16_exists=true
-            [ -f "$MODEL_PATH_Q5" ] && q5_exists=true
+            local lite_exists=false
+            local hot_exists=false
+            local extra_spicy_exists=false
+            [ -f "$MODEL_PATH_LITE" ] && lite_exists=true
+            [ -f "$MODEL_PATH_HOT" ] && hot_exists=true
+            [ -f "$MODEL_PATH_EXTRA_SPICY" ] && extra_spicy_exists=true
 
-            if ! $fp16_exists && ! $q5_exists; then
+            if ! $lite_exists && ! $hot_exists && ! $extra_spicy_exists; then
                 echo "🍋 No Zest models are installed."
                 exit 0
             fi
 
-            if $fp16_exists && $q5_exists; then
-                echo "🍋 Both models are installed:"
-                echo "   1. FP16 (Full Precision)"
-                echo "   2. Q5 (Quantized)"
-                echo "   3. Both"
+            # Count how many are installed
+            local count=0
+            $lite_exists && count=$((count + 1))
+            $hot_exists && count=$((count + 1))
+            $extra_spicy_exists && count=$((count + 1))
+
+            if [ "$count" -gt 1 ]; then
+                echo "🍋 Multiple models are installed:"
+                local option=1
+                local options=()
+                if $lite_exists; then
+                    echo "   $option. Lite"
+                    options+=("lite")
+                    option=$((option + 1))
+                fi
+                if $hot_exists; then
+                    echo "   $option. Hot"
+                    options+=("hot")
+                    option=$((option + 1))
+                fi
+                if $extra_spicy_exists; then
+                    echo "   $option. Extra Spicy"
+                    options+=("extra_spicy")
+                    option=$((option + 1))
+                fi
+                echo "   $option. All"
                 echo ""
                 while true; do
-                    printf "Which would you like to uninstall? [1/2/3]: "
+                    printf "Which would you like to uninstall? [1-%d]: " "$option"
                     read -r choice
-                    case "$choice" in
-                        1) uninstall_product "fp16"; break ;;
-                        2) uninstall_product "q5"; break ;;
-                        3) uninstall_product "fp16"; uninstall_product "q5"; break ;;
-                        *) echo "❌ Invalid choice. Please enter 1, 2, or 3." ;;
-                    esac
+                    if [ "$choice" -ge 1 ] && [ "$choice" -lt "$option" ] 2>/dev/null; then
+                        uninstall_product "${options[$((choice - 1))]}"
+                        break
+                    elif [ "$choice" -eq "$option" ] 2>/dev/null; then
+                        for p in "${options[@]}"; do
+                            uninstall_product "$p"
+                        done
+                        break
+                    else
+                        echo "❌ Invalid choice."
+                    fi
                 done
-            elif $fp16_exists; then
-                uninstall_product "fp16"
+            elif $lite_exists; then
+                uninstall_product "lite"
+            elif $hot_exists; then
+                uninstall_product "hot"
             else
-                uninstall_product "q5"
+                uninstall_product "extra_spicy"
             fi
         fi
 
@@ -377,7 +449,7 @@ main() {
         echo "❌ No Zest models are installed."
         echo ""
         echo "To install Zest:"
-        echo "  1. Download Zest-FP16.dmg or Zest-Q5.dmg"
+        echo "  1. Download Zest-Lite.dmg, Zest-Hot.dmg, or Zest-Extra-Spicy.dmg"
         echo "  2. Drag the app to Applications"
         echo "  3. Run 'zest' from Terminal"
         exit 1

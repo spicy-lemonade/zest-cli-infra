@@ -345,13 +345,16 @@ def _prompt_for_product() -> str | None:
     """Prompt user to select a product."""
     print("")
     print("Which product license?")
-    print("   1. FP16 (Full Precision)")
-    print("   2. Q5 (Quantized)")
-    choice = input("Enter choice [1/2]: ").strip()
+    print("   1. Lite")
+    print("   2. Hot")
+    print("   3. Extra Spicy")
+    choice = input("Enter choice [1/2/3]: ").strip()
     if choice == "1":
-        return "fp16"
+        return "lite"
     elif choice == "2":
-        return "q5"
+        return "hot"
+    elif choice == "3":
+        return "extra_spicy"
     else:
         print("❌ Invalid choice.")
         return None
@@ -440,10 +443,12 @@ def handle_uninstall(product: str | None):
     cleanup_script = os.path.join(ZEST_DIR, "cleanup.sh")
 
     cmd = [cleanup_script, "--uninstall"]
-    if product == "fp16":
-        cmd.append("--fp")
-    elif product == "q5":
-        cmd.append("--q5")
+    if product == "lite":
+        cmd.append("--lite")
+    elif product == "hot":
+        cmd.append("--hot")
+    elif product == "extra_spicy":
+        cmd.append("--extra-spicy")
 
     if os.path.exists(cleanup_script):
         try:
@@ -458,7 +463,7 @@ def handle_uninstall(product: str | None):
 def handle_model_switch(product: str):
     """Switch active model preference."""
     if product not in PRODUCTS:
-        print(f"❌ Invalid product. Use: --fp or --q5")
+        print(f"❌ Invalid product. Use: --lite, --hot, or --extra-spicy")
         sys.exit(1)
 
     model_path = PRODUCTS[product]["path"]
