@@ -63,6 +63,59 @@ def is_expensive_command(command: str) -> tuple[bool, str | None]:
     return False, None
 
 
+def is_dangerous_command(command: str) -> tuple[bool, str | None]:
+    """Check if a command contains potentially dangerous operations."""
+    dangerous_patterns = [
+        ("sudo rm", "deletes files with administrator privileges"),
+        ("sudo dd", "can overwrite disk data with administrator privileges"),
+        ("sudo mkfs", "formats/erases disk partitions with administrator privileges"),
+        ("sudo chmod -R", "recursively changes file permissions with administrator privileges"),
+        ("sudo chown -R", "recursively changes file ownership with administrator privileges"),
+        ("rm -rf /", "recursively deletes files starting from root"),
+        ("rm -rf ~", "recursively deletes your entire home directory"),
+        ("rm -rf /*", "recursively deletes all files on your computer"),
+        ("rm -rf $HOME", "recursively deletes your entire home directory"),
+        ("rm -f", "forces file deletion without confirmation"),
+        ("rm -rf", "recursively deletes files and folders without confirmation"),
+        ("dd if=", "can overwrite disk data"),
+        ("dd of=/dev", "writes directly to disk devices"),
+        ("mkfs", "formats/erases disk partitions"),
+        ("> /dev/sd", "writes directly to disk devices"),
+        ("> /dev/disk", "writes directly to disk devices"),
+        ("mkfs.", "formats/erases disk partitions"),
+        ("fdisk", "modifies disk partition tables"),
+        ("parted", "modifies disk partition tables"),
+        (":(){ :|:& };:", "is a fork bomb that can crash your system"),
+        ("chmod -R 777", "makes all files world-writable recursively"),
+        ("chmod -R 000", "removes all permissions recursively"),
+        ("chown -R", "recursively changes file ownership"),
+        ("kill -9 -1", "terminates all your processes"),
+        ("pkill -9", "force kills processes"),
+        ("killall -9", "force kills all instances of a process"),
+        (">~/.ssh", "modifies SSH configuration"),
+        (">~/.bash", "modifies shell configuration"),
+        (">~/.zsh", "modifies shell configuration"),
+        ("curl", "downloads and potentially executes remote content"),
+        ("wget", "downloads remote content"),
+    ]
+
+    command_lower = command.lower().strip()
+
+    # Check for sudo as a general warning if not caught by specific patterns
+    if command_lower.startswith("sudo "):
+        for pattern, reason in dangerous_patterns:
+            if pattern.lower() in command_lower:
+                return True, reason
+        return True, "requires administrator privileges"
+
+    # Check all other dangerous patterns
+    for pattern, reason in dangerous_patterns:
+        if pattern.lower() in command_lower:
+            return True, reason
+
+    return False, None
+
+
 def clean_command_output(response: str) -> str:
     """
     Clean the model output to extract only the command.
@@ -180,3 +233,18 @@ def prompt_for_context(user_context: str | None) -> tuple[str | None, bool]:
     if context_input and context_input.lower() not in NEGATIVE:
         return context_input, True
     return user_context, False
+
+
+def prompt_dangerous_confirmation() -> bool:
+    """
+    Prompt user to type 'run' to confirm execution of a dangerous command.
+    Returns True if user types 'run', False otherwise.
+    """
+    while True:
+        choice = input("🚨 Type 'run' to execute, or 'n' to reject: ").strip().lower()
+        if choice == "run":
+            return True
+        elif choice in NEGATIVE or choice == "":
+            return False
+        else:
+            print("   Please type 'run' to execute or 'n' to reject.")

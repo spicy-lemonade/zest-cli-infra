@@ -35,9 +35,11 @@ from model import (
 from commands import (
     check_query_quality,
     is_expensive_command,
+    is_dangerous_command,
     generate_command,
     prompt_yes_no,
-    prompt_for_context
+    prompt_for_context,
+    prompt_dangerous_confirmation
 )
 from auth import authenticate
 from trial import check_trial_license
@@ -261,21 +263,46 @@ def _run_command_loop(llm, query: str):
         print("\033[K", end="\r")
         print(f"🍋 Suggested Command:\n   \033[1;32m{command}\033[0m")
 
+        # Check for dangerous commands first
+        is_dangerous, danger_reason = is_dangerous_command(command)
+        is_expensive, expensive_reason = is_expensive_command(command)
+
+        if is_dangerous:
+            print(f"\n🚨 DANGER: This command {danger_reason}.")
+            print("   This operation could have serious side effects!")
+            try:
+                if not prompt_dangerous_confirmation():
+                    rejections_since_context, user_context, temp_increment = _handle_rejection(
+                        command, "User rejected dangerous command", failed_history,
+                        rejections_since_context, user_context, temp_increment
+                    )
+                    if _should_continue_after_rejection():
+                        continue
+                    else:
+                        break
+                print("-" * 30)
+            except KeyboardInterrupt:
+                print("\033[?25h\n❌ Aborted.")
+                break
         # Check for expensive commands
-        is_expensive, reason = is_expensive_command(command)
-        if is_expensive:
-            print(f"\n⚠️  Warning: This command is {reason}.")
+        elif is_expensive:
+            print(f"\n⚠️  Warning: This command is {expensive_reason}.")
             print("   It might take a while or produce a lot of results.")
-            if not prompt_yes_no("🍋 Continue? [y/n]: "):
-                rejections_since_context, user_context, temp_increment = _handle_rejection(
-                    command, "User rejected expensive command", failed_history,
-                    rejections_since_context, user_context, temp_increment
-                )
-                if _should_continue_after_rejection():
-                    continue
-                else:
-                    break
-            print("-" * 30)
+            try:
+                if not prompt_yes_no("🍋 Continue? [y/n]: "):
+                    rejections_since_context, user_context, temp_increment = _handle_rejection(
+                        command, "User rejected expensive command", failed_history,
+                        rejections_since_context, user_context, temp_increment
+                    )
+                    if _should_continue_after_rejection():
+                        continue
+                    else:
+                        break
+                print("-" * 30)
+            except KeyboardInterrupt:
+                print("\033[?25h\n❌ Aborted.")
+                break
+        # Regular commands
         else:
             try:
                 if prompt_yes_no("\n\033[?25h🍋 Execute? [y/n]: "):
