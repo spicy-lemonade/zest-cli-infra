@@ -1,0 +1,63 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Sensitive variables
+terraform.tfvars
+*.auto.tfvars
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config
+.terraformrc
+terraform.rc
+
+# Python virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# Firebase
+.firebaserc
+firebase-debug.log
+firebase-debug.*.log
+
+# Python
+__pycache__/
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# Terraform plan files
+*.tfplan
+tfplan
+
+# Zest CLI build artifacts
+zest_cli/build/
+zest_cli/dist/
+
+# Environment files
+.env
+.env.*
+
+# GCP service account keys
+service-account*.json
+credentials*.json
+
+# Node modules
+node_modules/
