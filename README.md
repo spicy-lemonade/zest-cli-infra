@@ -7,10 +7,15 @@ Zest CLI translates natural language into shell commands using locally-trained s
 
 ### Why Zest CLI?
 
-- **Fully offline** — runs entirely on your machine with no network calls at inference time
-- **Privacy first** — your commands and queries never leave your device
-- **No API keys** — no accounts, tokens, or cloud dependencies required
+- **Small language models** — purpose-trained SLMs optimised for CLI command translation
+- **Runs offline** — runs entirely on your machine with no network calls at inference time
 - **Runs on CPU** — no GPU needed, works on any modern Mac
+- **No cloud** — no cloud dependencies at inference time
+- **No API keys** — no accounts, tokens, or subscriptions required
+- **Privacy first** — your commands and queries never leave your device
+- **No tracking** — zero telemetry or usage collection
+- **No logging** — nothing is recorded or stored beyond your local session
+- **No analytics** — your usage patterns are never observed or analysed
 
 ## 🏗 Architecture & Data Flow
 
