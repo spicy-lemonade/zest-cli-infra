@@ -31,4 +31,4 @@ MODEL_FILES = {
     "hot": "qwen2_5_coder_7b_fp16.gguf",
     "extra_spicy": "qwen2_5_coder_14b_Q5_K_M.gguf"
 }
-GCS_BUCKET = os.environ.get("GCS_BUCKET", "")
+GCS_BUCKET = os.environ.get("GCS_BUCKET", "nlcli-models")

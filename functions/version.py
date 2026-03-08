@@ -6,7 +6,7 @@ import json
 from firebase_functions import https_fn, options
 from firebase_admin import firestore
 
-from config import VALID_PRODUCTS, MODEL_FILES, GCS_BUCKET, SERVICE_ACCOUNT_EMAIL
+from config import VALID_PRODUCTS, MODEL_FILES, SERVICE_ACCOUNT_EMAIL
 
 
 @https_fn.on_request(
@@ -35,7 +35,6 @@ def check_version(req: https_fn.Request) -> https_fn.Response:
     - model_update_available: Boolean indicating if model update is available
     - update_message: Optional message to display to user
     - update_url: URL to download CLI update
-    - model_download_url: Direct URL to download updated model
     - model_filename: Filename of the model
     - model_size_bytes: Size of the model file (for progress display)
     """
@@ -61,7 +60,6 @@ def check_version(req: https_fn.Request) -> https_fn.Response:
     version_doc = version_ref.get()
 
     model_filename = MODEL_FILES.get(product, MODEL_FILES["lite"])
-    model_download_url = f"https://storage.googleapis.com/{GCS_BUCKET}/{model_filename}"
 
     if not version_doc.exists:
         return https_fn.Response(json.dumps({
@@ -71,7 +69,6 @@ def check_version(req: https_fn.Request) -> https_fn.Response:
             "model_update_available": False,
             "update_message": None,
             "update_url": "https://zestcli.com",
-            "model_download_url": model_download_url,
             "model_filename": model_filename,
             "model_size_bytes": 0
         }), status=200, content_type="application/json")
@@ -108,7 +105,6 @@ def check_version(req: https_fn.Request) -> https_fn.Response:
         "model_update_available": model_update_available,
         "update_message": update_message,
         "update_url": update_url,
-        "model_download_url": model_download_url,
         "model_filename": model_filename,
         "model_size_bytes": model_size
     }), status=200, content_type="application/json")

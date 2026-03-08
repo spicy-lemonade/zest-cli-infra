@@ -52,6 +52,9 @@ from devices import (
 # Import and re-export version function
 from version import check_version
 
+# Import and re-export signed URL function
+from signed_url import get_model_download_url
+
 # Export all functions for Firebase Functions discovery
 __all__ = [
     # Checkout
@@ -73,4 +76,6 @@ __all__ = [
     "license_heartbeat",
     # Version
     "check_version",
+    # Signed URL
+    "get_model_download_url",
 ]

@@ -15,6 +15,17 @@ from config import (
 )
 
 
+def _delete_model_file(product: str):
+    """Delete the model file from disk when trial expires."""
+    import os
+    model_path = PRODUCTS[product]["path"]
+    if os.path.exists(model_path):
+        try:
+            os.remove(model_path)
+        except OSError:
+            pass
+
+
 def get_hw_id():
     """Get the macOS Hardware UUID."""
     cmd = 'ioreg -d2 -c IOPlatformExpertDevice | awk -F"\\"" \'/IOPlatformUUID/{print $(NF-1)}\''
@@ -159,7 +170,10 @@ def show_trial_expired_prompt(product: str, email: str) -> bool:
     product_name = PRODUCTS[product]["name"]
     print("")
     print("┌─────────────────────────────────────────────────┐")
-    print(f"│  Your free trial of {product_name} has expired.")
+    print(f"│  ❗ Your free trial of {product_name} has expired.")
+    print("│")
+    print("│  Your model file has been removed.")
+    print("│  Purchase a license to continue using Zest.")
     print("│")
     print("│  [1] Purchase Zest")
     print("│  [2] I already paid - activate my license")
@@ -362,14 +376,14 @@ def start_trial_flow(product: str) -> bool:
 
     # OTP verification loop with retry support
     while True:
-        code = input("Enter the 6-digit code (or \"back\" to change email): ").strip()
+        code = input("Enter the 6-digit code: ").strip()
 
         if code.lower() == "back":
             print("")
             return start_trial_flow(product)
 
         if not code:
-            print("   Please enter the 6-digit code or \"back\" to change email.")
+            print("   Please enter the 6-digit code.")
             continue
 
         if code.isdigit() and len(code) != 6:
@@ -377,7 +391,7 @@ def start_trial_flow(product: str) -> bool:
             continue
 
         if not code.isdigit():
-            print("   Please enter the 6-digit code or \"back\" to change email.")
+            print("   Please enter the 6-digit code.")
             continue
 
         result = _complete_trial_registration(email, code, product, hw_id, nickname)
@@ -770,7 +784,8 @@ def _start_reminder_checkout(product: str, email: str) -> bool:
 
 
 def _handle_expired_trial(product: str, email: str, config: dict, trial_key: str) -> bool:
-    """Handle an expired trial - check for pending checkout or show prompt."""
+    """Handle an expired trial - delete model, check for pending checkout or show prompt."""
+    _delete_model_file(product)
     pending_result = check_pending_checkout_and_activate(product)
     if pending_result is True:
         return True

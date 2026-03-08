@@ -116,7 +116,7 @@ def _handle_new_user_flow(product: str, product_name: str, config: dict) -> bool
     _show_welcome_menu(product_name)
 
     while True:
-        choice = input("Enter choice [1/2/3]: ").strip()
+        choice = input("Enter choice [1/2/3/4]: ").strip()
 
         if choice == "2":
             if start_trial_flow(product):
@@ -128,10 +128,14 @@ def _handle_new_user_flow(product: str, product_name: str, config: dict) -> bool
             _handle_purchase_flow(product, config)
             continue
 
+        if choice == "4":
+            print("👋 Goodbye!")
+            sys.exit(0)
+
         if choice == "1":
             break
 
-        print("   Please enter 1, 2, or 3.")
+        print("   Please enter 1, 2, 3, or 4.")
 
     return _activate_paid_account(product, product_name)
 
@@ -156,6 +160,7 @@ def _show_welcome_menu(product_name: str):
     print("│  [1] I already have a paid account")
     print("│  [2] Start free trial (5 days)")
     print("│  [3] Purchase a license")
+    print("│  [4] Exit")
     print("└─────────────────────────────────────────────────┘")
     print("")
 

@@ -23,7 +23,7 @@ API_BASE = "https://europe-west1-nl-cli.cloudfunctions.net"
 # --- Timing ---
 LEASE_DURATION = 1209600  # 14 days in seconds
 UPDATE_CHECK_INTERVAL = 1209600  # Check for updates every 2 weeks
-TRIAL_CHECK_INTERVAL = 86400  # 24 hours in seconds
+TRIAL_CHECK_INTERVAL = 86400  # 24 hours
 
 # --- App Bundles ---
 APP_PATHS = {

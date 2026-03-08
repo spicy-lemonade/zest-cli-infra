@@ -28,18 +28,18 @@ def get_active_product() -> str | None:
     config = load_config()
     preferred = config.get("active_product")
 
-    # If user has a preference and both model and app exist, use it
+    # If user has a preference and app or model exists, use it
     if preferred and preferred in PRODUCTS:
         app_exists = os.path.exists(APP_PATHS.get(preferred, ""))
         model_exists = os.path.exists(PRODUCTS[preferred]["path"])
-        if app_exists and model_exists:
+        if app_exists or model_exists:
             return preferred
 
-    # Otherwise, prefer extra_spicy > hot > lite if available AND app is installed
+    # Otherwise, prefer extra_spicy > hot > lite if app or model is available
     for product in ["extra_spicy", "hot", "lite"]:
         app_exists = os.path.exists(APP_PATHS[product])
         model_exists = os.path.exists(PRODUCTS[product]["path"])
-        if app_exists and model_exists:
+        if app_exists or model_exists:
             return product
 
     # Fallback: if no app bundle but model exists, still allow (dev/manual mode)
@@ -102,6 +102,59 @@ def set_model_version(product: str, version: str):
     config = load_config()
     config[f"{product}_model_version"] = version
     save_config(config)
+
+
+def request_model_download_url(product: str) -> dict | None:
+    """Request a signed download URL from the backend. Returns {"download_url": ..., "model_size_bytes": ...} or None."""
+    config = load_config()
+    license_data = config.get(f"{product}_license", {})
+    trial_data = config.get(f"{product}_trial", {})
+    email = license_data.get("email") or trial_data.get("email")
+
+    if not email:
+        return None
+
+    from trial import get_hw_id
+    hw_id = get_hw_id()
+
+    try:
+        res = requests.post(
+            f"{API_BASE}/get_model_download_url",
+            json={"email": email, "device_id": hw_id, "product": product},
+            timeout=15
+        )
+        if res.status_code == 200:
+            return res.json()
+        else:
+            print(f"\n❌ Could not get download URL: {res.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"\n❌ Connection error: {format_connection_error(e)}")
+
+    return None
+
+
+def ensure_model_downloaded(product: str):
+    """Check if model file exists; if not, download it via signed URL."""
+    model_path = PRODUCTS[product]["path"]
+    if os.path.exists(model_path):
+        return
+
+    product_name = PRODUCTS[product]["name"]
+    print(f"\n📥 {product_name} model not found. Downloading...")
+
+    data = request_model_download_url(product)
+    if not data or not data.get("download_url"):
+        print("❌ Could not get model download URL. Please try again later.")
+        sys.exit(1)
+
+    os.makedirs(ZEST_DIR, exist_ok=True)
+    model_size = data.get("model_size_bytes", 0)
+
+    if download_model_with_progress(data["download_url"], model_path, model_size):
+        print(f"✅ {product_name} model installed.")
+    else:
+        print("❌ Model download failed. Please try again.")
+        sys.exit(1)
 
 
 def download_model_with_progress(url: str, dest_path: str, total_size: int = 0) -> bool:
@@ -237,17 +290,17 @@ def _handle_model_update(data: dict, product: str):
     print("")
     print(f"📥 Downloading {PRODUCTS[product]['name']} model...")
     model_path = PRODUCTS[product]["path"]
-    download_url = data.get("model_download_url")
 
-    if not download_url:
-        print("❌ No download URL available.")
+    url_data = request_model_download_url(product)
+    if not url_data or not url_data.get("download_url"):
+        print("❌ Could not get model download URL. Please try again later.")
         return
 
     backup_path = model_path + ".backup"
     if os.path.exists(model_path):
         os.rename(model_path, backup_path)
 
-    success = download_model_with_progress(download_url, model_path, model_size)
+    success = download_model_with_progress(url_data["download_url"], model_path, model_size)
 
     if success:
         set_model_version(product, latest_model_version)

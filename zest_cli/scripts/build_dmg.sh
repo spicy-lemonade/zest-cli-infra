@@ -15,7 +15,6 @@ DIST_DIR="$PROJECT_DIR/dist"
 VERSION="1.0.0"
 APP_NAME="Zest"
 BUNDLE_ID="com.zestcli.zest"
-GCS_BUCKET="nlcli-models"
 
 # Verify version matches config.py
 CONFIG_PY_VERSION=$(grep -m1 'VERSION = "' "$PROJECT_DIR/config.py" | sed 's/.*VERSION = "\([^"]*\)".*/\1/')
@@ -45,9 +44,9 @@ case "$PRODUCT" in
         ;;
     *)
         echo "Usage: $0 [lite|hot|extra_spicy]"
-        echo "  lite        - Build DMG with Lite model (~5GB)"
-        echo "  hot         - Build DMG with Hot model (~15GB)"
-        echo "  extra_spicy - Build DMG with Extra Spicy model (~9GB)"
+        echo "  lite        - Build Lite DMG (~50MB, model downloaded on first run)"
+        echo "  hot         - Build Hot DMG (~50MB, model downloaded on first run)"
+        echo "  extra_spicy - Build Extra Spicy DMG (~50MB, model downloaded on first run)"
         exit 1
         ;;
 esac
@@ -78,26 +77,6 @@ pip install --upgrade pip
 pip install pyinstaller
 pip install -r "$PROJECT_DIR/requirements.txt"
 
-# Download model from GCS if not present locally
-MODEL_PATH="$BUILD_DIR/$MODEL_NAME"
-if [ ! -f "$MODEL_PATH" ]; then
-    echo "📥 Downloading model from GCS (this may take a while)..."
-    if command -v gsutil >/dev/null 2>&1; then
-        gsutil cp "gs://$GCS_BUCKET/$MODEL_NAME" "$MODEL_PATH"
-    else
-        echo "⚠️  gsutil not found. Trying public URL..."
-        curl -L --progress-bar -o "$MODEL_PATH" \
-            "https://storage.googleapis.com/$GCS_BUCKET/$MODEL_NAME" || {
-            echo "❌ Failed to download model."
-            echo "   Install gsutil: pip install gsutil"
-            echo "   Or ensure the bucket is publicly accessible."
-            exit 1
-        }
-    fi
-fi
-
-echo "✅ Model ready: $(du -h "$MODEL_PATH" | cut -f1)"
-
 # Build executable with PyInstaller
 # Using --onedir for fast startup (--onefile extracts on every launch = slow)
 echo "🔨 Building executable..."
@@ -111,8 +90,12 @@ pyinstaller \
     --specpath="$BUILD_DIR" \
     --hidden-import=llama_cpp \
     --hidden-import=requests \
+    --hidden-import=charset_normalizer \
     --hidden-import=json \
     --collect-all llama_cpp \
+    --collect-all charset_normalizer \
+    --copy-metadata charset-normalizer \
+    --copy-metadata requests \
     main.py
 
 # Create app bundle structure
@@ -129,10 +112,6 @@ chmod +x "$APP_BUNDLE/Contents/MacOS/zest"
 # Move _internal contents to Frameworks (where bootloader expects them)
 mkdir -p "$APP_BUNDLE/Contents/Frameworks"
 cp -R "$BUILD_DIR/pyinstaller_dist/zest/_internal/"* "$APP_BUNDLE/Contents/Frameworks/"
-
-# Copy model
-echo "📦 Copying model to bundle..."
-cp "$MODEL_PATH" "$APP_BUNDLE/Contents/Resources/$MODEL_NAME"
 
 # Copy Python modules for standalone use (survives app deletion)
 echo "📝 Copying standalone CLI modules..."
@@ -238,9 +217,6 @@ if [ $# -eq 0 ]; then
     fi
 fi
 
-MODEL_SRC="$RESOURCES_DIR/$MODEL_NAME"
-MODEL_DEST="$HOME/.zest/$MODEL_NAME"
-
 # First-run setup
 SETUP_MARKER="$HOME/.zest/.${PRODUCT_LOWER}_setup_complete"
 UNINSTALL_MARKER="$HOME/.zest/.${PRODUCT_LOWER}_uninstalled"
@@ -249,13 +225,6 @@ if [ ! -f "$SETUP_MARKER" ]; then
 
     # Remove uninstall marker if present (user is reinstalling)
     rm -f "$UNINSTALL_MARKER"
-
-    # Copy model
-    if [ ! -f "$MODEL_DEST" ] && [ -f "$MODEL_SRC" ]; then
-        echo "🍋 Installing Zest $PRODUCT_NAME model (first run only)..."
-        cp "$MODEL_SRC" "$MODEL_DEST"
-        echo "✅ Model installed."
-    fi
 
     # Copy standalone CLI modules for cleanup after app deletion
     for pyfile in main.py config.py model.py commands.py auth.py trial.py activation.py; do
@@ -368,18 +337,6 @@ Open Terminal and run a command, for example:
 Add to ~/.bashrc or ~/.zshrc (for using ? and * wildcards):
   alias zest='noglob /usr/local/bin/zest'\" buttons {\"OK\"} default button \"OK\" with title \"Zest CLI\""
     exit 0
-fi
-
-# Ensure model is in place (in case it was accidentally deleted)
-# Only auto-reinstall if not explicitly uninstalled by user
-UNINSTALL_MARKER="$HOME/.zest/.${PRODUCT_LOWER}_uninstalled"
-if [ ! -f "$MODEL_DEST" ] && [ -f "$MODEL_SRC" ] && [ ! -f "$UNINSTALL_MARKER" ]; then
-    mkdir -p "$HOME/.zest"
-    echo "🍋 Installing Zest $PRODUCT_NAME model..."
-    cp "$MODEL_SRC" "$MODEL_DEST"
-    echo "✅ Model installed."
-    # Remove uninstall marker since we're reinstalling
-    rm -f "$UNINSTALL_MARKER"
 fi
 
 # Run the CLI

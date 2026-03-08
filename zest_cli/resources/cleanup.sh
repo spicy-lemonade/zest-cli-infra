@@ -299,26 +299,26 @@ handle_orphan() {
     fi
 }
 
-# Determine active product
+# Determine active product (checks both model files and app bundles)
 get_active_product() {
     # Check config for preference
     local preferred
     preferred=$(read_config "active_product")
 
     if [ -n "$preferred" ]; then
-        local model_path
+        local model_path app_path
         case "$preferred" in
-            lite) model_path="$MODEL_PATH_LITE" ;;
-            hot) model_path="$MODEL_PATH_HOT" ;;
-            extra_spicy) model_path="$MODEL_PATH_EXTRA_SPICY" ;;
+            lite) model_path="$MODEL_PATH_LITE"; app_path="$LITE_APP" ;;
+            hot) model_path="$MODEL_PATH_HOT"; app_path="$HOT_APP" ;;
+            extra_spicy) model_path="$MODEL_PATH_EXTRA_SPICY"; app_path="$EXTRA_SPICY_APP" ;;
         esac
-        [ -f "$model_path" ] && echo "$preferred" && return
+        ( [ -f "$model_path" ] || [ -d "$app_path" ] ) && echo "$preferred" && return
     fi
 
     # Fallback: prefer extra_spicy > hot > lite
-    [ -f "$MODEL_PATH_EXTRA_SPICY" ] && echo "extra_spicy" && return
-    [ -f "$MODEL_PATH_HOT" ] && echo "hot" && return
-    [ -f "$MODEL_PATH_LITE" ] && echo "lite" && return
+    ( [ -f "$MODEL_PATH_EXTRA_SPICY" ] || [ -d "$EXTRA_SPICY_APP" ] ) && echo "extra_spicy" && return
+    ( [ -f "$MODEL_PATH_HOT" ] || [ -d "$HOT_APP" ] ) && echo "hot" && return
+    ( [ -f "$MODEL_PATH_LITE" ] || [ -d "$LITE_APP" ] ) && echo "lite" && return
 
     echo ""
 }
@@ -371,16 +371,16 @@ main() {
             # Uninstall specific product
             uninstall_product "$product"
         else
-            # Determine what to uninstall
+            # Determine what to uninstall (check both models and app bundles)
             local lite_exists=false
             local hot_exists=false
             local extra_spicy_exists=false
-            [ -f "$MODEL_PATH_LITE" ] && lite_exists=true
-            [ -f "$MODEL_PATH_HOT" ] && hot_exists=true
-            [ -f "$MODEL_PATH_EXTRA_SPICY" ] && extra_spicy_exists=true
+            ( [ -f "$MODEL_PATH_LITE" ] || [ -d "$LITE_APP" ] ) && lite_exists=true
+            ( [ -f "$MODEL_PATH_HOT" ] || [ -d "$HOT_APP" ] ) && hot_exists=true
+            ( [ -f "$MODEL_PATH_EXTRA_SPICY" ] || [ -d "$EXTRA_SPICY_APP" ] ) && extra_spicy_exists=true
 
             if ! $lite_exists && ! $hot_exists && ! $extra_spicy_exists; then
-                echo "🍋 No Zest models are installed."
+                echo "🍋 No Zest installations found."
                 exit 0
             fi
 

@@ -27,13 +27,18 @@ Input
 import sys
 import os
 import subprocess
+import warnings
 from datetime import datetime, timezone
+
+# Suppress charset_normalizer warning from requests in PyInstaller bundle
+warnings.filterwarnings("ignore", message="Unable to find acceptable character detection dependency")
 
 from config import VERSION, PRODUCTS, load_config, save_config
 from model import (
     get_active_product,
     check_for_orphaned_installation,
     check_for_updates,
+    ensure_model_downloaded,
     get_model_version,
     load_model
 )
@@ -486,13 +491,16 @@ def main():
     if not check_trial_license(active_product):
         authenticate(active_product)
 
-    # 7. Check for updates (silent, non-blocking)
+    # 7. Ensure model is downloaded (first-run or post-trial-expiry re-download)
+    ensure_model_downloaded(active_product)
+
+    # 8. Check for updates (silent, non-blocking)
     check_for_updates(active_product)
 
-    # 8. Load model
+    # 9. Load model
     llm = load_model(active_product)
 
-    # 9. Run command loop
+    # 10. Run command loop
     _run_command_loop(llm, query)
 
 
