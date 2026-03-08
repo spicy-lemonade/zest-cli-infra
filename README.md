@@ -11,7 +11,7 @@ While the GIF shows simple file management, Zest is designed for a variety of do
 
 - Networking: "Show all active listening TCP ports"
 - Docker: "Show the logs for the Docker container `my-app`"
-- Git: "Show the most recent commit that modified the file components/pages/AboutPage.tsx"
+- Git: "Show the most recent commit that modified the file `components/pages/AboutPage.tsx`"
 - System: "Check my disk usage and sort the top 5 largest directories in my home folder"
 
 *Note: Zest works best with single requests. i.e. `show the top 5 XXX` is better than `show the top 5 XXX or YYY`*
