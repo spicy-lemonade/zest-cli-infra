@@ -2,7 +2,7 @@
 
 #### Small language models. Runs offline. Runs on CPU. No cloud. No API keys. Privacy first. No tracking.
 
-Zest CLI translates natural language into shell commands using local small language models. macOS only. Learn more at [zestcli.com](https://zestcli.com). 
+Zest CLI translates natural language into shell commands using a local small language model. MacOS only. Learn more at [zestcli.com](https://zestcli.com). 
 
 ![preview_zest](https://github.com/user-attachments/assets/932654b9-55a9-419a-82ff-3970606bbb9e)
 
