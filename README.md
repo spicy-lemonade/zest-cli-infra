@@ -26,20 +26,9 @@ While the GIF shows simple file management, Zest is designed for a variety of do
 - **Privacy first** — your commands and queries never leave your device
 - **No tracking** — zero telemetry, user data, or usage data collection
 
-## 🏗 Architecture & Data Flow
+## 🏗 Model Architecture
 
 While the core agent runs **offline on CPU** (privacy-first, no tracking), the training pipeline utilizes Google Cloud Storage (GCS) to manage datasets before they are loaded into Google Colab for fine-tuning.
-
-The training data and data processing pipeline are maintained in a separate private repository. Both the data sources and the processing logic are confidential. We utilize a **Medallion Architecture** pattern for data storage to ensure reproducibility and data quality.
-
-| Layer | Bucket Role |
-| :--- | :--- |
-| **🥉 Base** | Raw input data (e.g., scraped CLI datasets, raw command data, synthetic data). |
-| **🥈 Staging** | Intermediate processing; cleaned and deduplicated data. |
-| **🥇 Mart** | Final training-formatted datasets with cross-dataset deduplication. |
-| **🪣 Models** | Storage for final models. |
-
-All buckets have versioning enabled. See [docs/model_releases.md](docs/model_releases.md) for details on model storage and release operations.
 
 ---
 
